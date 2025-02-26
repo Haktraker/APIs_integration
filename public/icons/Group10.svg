@@ -1,0 +1,25 @@
+<svg width="110" height="98" viewBox="0 0 110 98" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path fill-rule="evenodd" clip-rule="evenodd" d="M84 30H26V68H41V62.6986C41 57.3424 45.4198 53 50.8752 53H59.1226C64.5764 53 68.9983 57.3424 68.9983 62.6986L68.9997 68H84V30ZM55 50C58.866 50 62 46.8655 62 42.9992C62 39.1328 58.866 36 55 36C51.1339 36 48 39.1327 48 42.9992C48 46.8657 51.1339 50 55 50Z" fill="url(#paint0_linear_623_197)"/>
+<path d="M18 51V22H66V16.5" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M92 47V76H44V81.5" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M66 16C63.2385 16 61 13.7614 61 11C61 8.23858 63.2385 6 66 6C68.7614 6 71 8.23858 71 11C71 13.7614 68.7614 16 66 16Z" stroke="white" stroke-width="3"/>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M44 92C41.2385 92 39 89.7614 39 87C39 84.2386 41.2385 82 44 82C46.7614 82 49 84.2386 49 87C49 89.7614 46.7614 92 44 92Z" stroke="white" stroke-width="3"/>
+<path d="M7.99997 80V96H24" stroke="#243AFF" stroke-width="4"/>
+<path d="M102 80V96H86" stroke="#243AFF" stroke-width="4"/>
+<path d="M7.99997 18V2H24" stroke="#243AFF" stroke-width="4"/>
+<path d="M102 18V2H86" stroke="#243AFF" stroke-width="4"/>
+<rect opacity="0.1" x="59" y="36.3809" width="10.381" height="10.381" transform="rotate(-90 59 36.3809)" fill="#3CE1CD"/>
+<rect opacity="0.4" x="72.381" y="36.3809" width="10.381" height="10.381" transform="rotate(-90 72.381 36.3809)" fill="#3CE1CD"/>
+<rect opacity="0.7" x="85.7619" y="36.3809" width="10.381" height="10.381" transform="rotate(-90 85.7619 36.3809)" fill="#3CE1CD"/>
+<rect x="99.1429" y="36.3809" width="10.381" height="10.381" transform="rotate(-90 99.1429 36.3809)" fill="#3CE1CD"/>
+<rect opacity="0.1" x="50.5239" y="62" width="10.381" height="10.381" transform="rotate(90 50.5239 62)" fill="#3CE1CD"/>
+<rect opacity="0.4" x="37.1429" y="62" width="10.381" height="10.381" transform="rotate(90 37.1429 62)" fill="#3CE1CD"/>
+<rect opacity="0.7" x="23.7619" y="62" width="10.381" height="10.381" transform="rotate(90 23.7619 62)" fill="#3CE1CD"/>
+<rect x="10.381" y="62" width="10.381" height="10.381" transform="rotate(90 10.381 62)" fill="#3CE1CD"/>
+<defs>
+<linearGradient id="paint0_linear_623_197" x1="55" y1="30" x2="55" y2="68" gradientUnits="userSpaceOnUse">
+<stop stop-color="#243AFF"/>
+<stop offset="1" stop-color="#243AFF" stop-opacity="0"/>
+</linearGradient>
+</defs>
+</svg>

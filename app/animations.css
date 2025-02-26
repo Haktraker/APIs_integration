@@ -1,0 +1,81 @@
+/* animations.css */
+
+/* Fade In Animation for the whole page or sections */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Glitch Effect for Text */
+@keyframes glitch {
+  0% {
+    clip: rect(42px, 9999px, 44px, 0);
+    transform: translate(0);
+  }
+  10% {
+    clip: rect(12px, 9999px, 80px, 0);
+    transform: translate(-2px, -2px);
+  }
+  20% {
+    clip: rect(12px, 9999px, 80px, 0);
+    transform: translate(2px, 2px);
+  }
+  30% {
+    clip: rect(42px, 9999px, 44px, 0);
+    transform: translate(-2px, 2px);
+  }
+  40% {
+    clip: rect(12px, 9999px, 80px, 0);
+    transform: translate(2px, -2px);
+  }
+  50% {
+    clip: rect(42px, 9999px, 44px, 0);
+    transform: translate(0);
+  }
+  100% {
+    clip: rect(42px, 9999px, 44px, 0);
+    transform: translate(0);
+  }
+}
+
+/* Glitch Text Styling */
+.glitch {
+  position: relative;
+  color: #fff;
+  font-size: 3rem;
+  animation: fadeIn 1s ease forwards;
+}
+
+.glitch::before,
+.glitch::after {
+  content: attr(data-text);
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  overflow: hidden;
+}
+.glitch::before {
+  animation: glitch 2s infinite linear alternate-reverse;
+  color: #ff003c; /* alert-red */
+}
+.glitch::after {
+  animation: glitch 3s infinite linear alternate-reverse;
+  color: #00f3ff; /* neon-cyan */
+}
+
+/* Scanlines Effect */
+@keyframes scanlines {
+  from { background-position: 0 0; }
+  to { background-position: 0 100%; }
+}
+.scanlines {
+  background: linear-gradient(black 50%, transparent 50%);
+  background-size: 100% 4px;
+  animation: scanlines 2s linear infinite;
+}
+
+/* Apply a fadeIn to container elements */
+.fade-in {
+  animation: fadeIn 1.5s ease-in-out forwards;
+}
