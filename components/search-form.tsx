@@ -14,8 +14,6 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  ScatterChart,
-  Scatter,
   ResponsiveContainer,
 } from "recharts";
 import { Input } from "@/components/ui/input";
@@ -29,7 +27,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { searchShodan, intelxSearch } from "@/lib/api";
+import {
+  searchShodan,
+  intelxSearch,
+  intelxSearchResultWithFiles,
+} from "@/lib/api";
 import { LoadingScreen } from "./loading-screen";
 import { Button } from "./ui/button";
 
@@ -101,13 +103,48 @@ interface IntelXSearchStatisticResponse {
   terminated: boolean;
 }
 
+/**
+ * This interface represents the enriched IntelX response that includes file results.
+ */
+interface IntelXSearchResultWithFiles {
+  results: {
+    records: Array<{
+      systemid: string;
+      owner: string;
+      storageid: string;
+      instore: boolean;
+      size: number;
+      accesslevel: number;
+      type: number;
+      media: number;
+      added: string;
+      date: string;
+      name: string;
+      description: string;
+      xscore: number;
+      simhash: number;
+      bucket: string;
+    }>;
+    status: number;
+    id: string;
+    count: number;
+  };
+  files: { [storageid: string]: string };
+  error?: string;
+}
+
 export function SearchForm() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<ShodanResponse | null>(null);
   const [intelXResults, setIntelXResults] =
     useState<IntelXSearchStatisticResponse | null>(null);
+  const [intelXFileResults, setIntelXFileResults] =
+    useState<IntelXSearchResultWithFiles | null>(null);
   const [loading, setLoading] = useState(false);
   const [showResults, setShowResults] = useState(false);
+  // State for the file modal
+  const [selectedFile, setSelectedFile] =
+    useState<{ name: string; content: string } | null>(null);
 
   const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#AF19FF"];
 
@@ -117,6 +154,7 @@ export function SearchForm() {
     setShowResults(false);
 
     try {
+      // Run both searches concurrently.
       const [shodanResponse, intelXResponse] = await Promise.all([
         searchShodan(query),
         intelxSearch(query),
@@ -124,6 +162,12 @@ export function SearchForm() {
 
       setResults(shodanResponse);
       setIntelXResults(intelXResponse.statistics);
+
+      // Now call the endpoint to fetch file data using the search id.
+      const intelXFilesResponse = await intelxSearchResultWithFiles(
+        intelXResponse.id
+      );
+      setIntelXFileResults(intelXFilesResponse);
 
       setTimeout(() => {
         setLoading(false);
@@ -141,6 +185,7 @@ export function SearchForm() {
         toast.error(err.message || "Failed to fetch results");
         setResults(null);
         setIntelXResults(null);
+        setIntelXFileResults(null);
       }, 8000);
     }
   };
@@ -161,14 +206,6 @@ export function SearchForm() {
         count: d.count,
       }))
       .sort((a, b) => a.date.getTime() - b.date.getTime());
-  };
-
-  const formatHeatmapData = () => {
-    if (!intelXResults?.heatmap) return {};
-    return Object.entries(intelXResults.heatmap).map(([timestamp, count]) => ({
-      date: new Date(parseInt(timestamp) * 1000),
-      count,
-    }));
   };
 
   const dateFormatter = (date: Date) => {
@@ -327,7 +364,7 @@ export function SearchForm() {
   function renderIntelXStatistics() {
     if (!intelXResults) return null;
 
-    // Custom Tooltip for Line Chart
+    // Custom Tooltip for the Line Chart.
     const LineTooltip = ({ active, payload, label }: any) => {
       if (active && payload && payload.length) {
         return (
@@ -339,20 +376,6 @@ export function SearchForm() {
       }
       return null;
     };
-
-    // // Custom Tooltip for Heatmap
-    // const HeatmapTooltip = ({ active, payload }: any) => {
-    //   if (active && payload && payload.length) {
-    //     const data = payload[0].payload;
-    //     return (
-    //       <div className="bg-gray-800 text-white p-3 rounded-lg shadow-lg border border-gray-700">
-    //         <p className="font-medium">{dateFormatter(data.date)}</p>
-    //         <p>Occurrences: {data.count}</p>
-    //       </div>
-    //     );
-    //   }
-    //   return null;
-    // };
 
     return (
       <div className="space-y-6">
@@ -431,7 +454,6 @@ export function SearchForm() {
                     dataKey="date"
                     tickFormatter={dateFormatter}
                     angle={-30}
-
                     textAnchor="end"
                     stroke="#9CA3AF"
                   />
@@ -449,101 +471,81 @@ export function SearchForm() {
             </div>
           </CardContent>
         </Card>
+      </div>
+    );
+  }
 
-          {/* <Card>
-    <CardHeader>
-      <CardTitle>Data Occurrence Heatmap</CardTitle>
-    </CardHeader>
-    <CardContent>
-      <div className="h-96">
-        <ResponsiveContainer width="100%" height="100%">
-          <ScatterChart margin={{ top: 20, right: 20, bottom: 100, left: 50 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-            <XAxis
-              dataKey="date"
-              type="number"
-              domain={['auto', 'auto']}
-              tickFormatter={(timestamp) =>
-                new Date(timestamp).toLocaleDateString('en-US', {
-                  month: 'short',
-                  day: 'numeric',
-                  year: 'numeric'
-                })
-              }
-              angle={-45}
-              textAnchor="end"
-              stroke="#9CA3AF"
-              tick={{ dy: 20 }}
-            />
-            <YAxis 
-              dataKey="count" 
-              stroke="#9CA3AF"
-              domain={[0, 'auto']}
-              allowDecimals={false}
-              label={{
-                value: 'Occurrences',
-                angle: -90,
-                position: 'insideLeft',
-                fill: '#9CA3AF',
-                offset: 45
-              }}
-            />
-            <Tooltip
-              content={({ payload }) => {
-                if (!payload?.length) return null;
-                const data = payload[0].payload;
+  function renderIntelXFiles() {
+    if (!intelXFileResults) return null;
+
+    // Filter records to only include those whose full file content contains the search query.
+    const filteredRecords = intelXFileResults.results.records.filter((record) => {
+      const content = intelXFileResults.files[record.storageid] || "";
+      return content.toLowerCase().includes(query.toLowerCase());
+    });
+
+    if (filteredRecords.length === 0) {
+      return (
+        <Card>
+          <CardHeader>
+            <CardTitle>IntelX Files (Text-based)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p>No files contain the search term "{query}"</p>
+          </CardContent>
+        </Card>
+      );
+    }
+
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>IntelX Files (Text-based)</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>File Name</TableHead>
+                <TableHead>Bucket</TableHead>
+                <TableHead>Added</TableHead>
+                <TableHead>Content Preview</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredRecords.map((record) => {
+                const content = intelXFileResults.files[record.storageid];
                 return (
-                  <div className="bg-gray-800 text-white p-3 rounded-lg shadow-lg border border-gray-700">
-                    <p className="font-medium">
-                      {new Date(data.date).toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric'
-                      })}
-                    </p>
-                    <p>Occurrences: {data.count}</p>
-                  </div>
-                );
-              }}
-            />
-            <Scatter
-              data={formatHeatmapData()}
-              fill="#3B82F6"
-              shape={({ cx, cy, payload }) => {
-                const radius = Math.min(payload.count * 4, 20);
-                return (
-                  <circle
-                    cx={cx}
-                    cy={cy}
-                    r={radius}
-                    fill={
-                      payload.count > 5 ? '#EF4444' : 
-                      payload.count > 2 ? '#F59E0B' : 
-                      '#3B82F6'
+                  <TableRow
+                    key={record.storageid}
+                    onClick={() =>
+                      setSelectedFile({
+                        name: record.name,
+                        content: content || "No content available",
+                      })
                     }
-                    opacity={0.9}
-                    stroke="#1D4ED8"
-                    strokeWidth={1}
-                  />
+                    className="cursor-pointer hover:bg-gray-100"
+                  >
+                    <TableCell>{record.name}</TableCell>
+                    <TableCell>{record.bucket}</TableCell>
+                    <TableCell>
+                      {new Date(record.added).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell>
+                      <pre className="whitespace-pre-wrap text-xs">
+                        {content
+                          ? content.substring(0, 200) +
+                            (content.length > 200 ? "..." : "")
+                          : "N/A"}
+                      </pre>
+                    </TableCell>
+                  </TableRow>
                 );
-              }}
-            />
-            <Legend 
-              verticalAlign="top"
-              wrapperStyle={{ paddingBottom: 20 }}
-              payload={[
-                { value: 'High Density (>5)', type: 'circle', color: '#EF4444' },
-                { value: 'Medium Density (3-5)', type: 'circle', color: '#F59E0B' },
-                { value: 'Low Density (1-2)', type: 'circle', color: '#3B82F6' }
-              ]}
-            />
-          </ScatterChart>
-        </ResponsiveContainer>
-      </div>
-    </CardContent>
-  </Card> */}
-
-      </div>
+              })}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
     );
   }
 
@@ -572,12 +574,18 @@ export function SearchForm() {
       </Card>
 
       {intelXResults && (
-            <Card>
-              <CardHeader>
-              </CardHeader>
-              <CardContent>{renderIntelXStatistics()}</CardContent>
-            </Card>
-          )}
+        <Card>
+          <CardHeader></CardHeader>
+          <CardContent>{renderIntelXStatistics()}</CardContent>
+        </Card>
+      )}
+
+      {intelXFileResults && (
+        <Card>
+          <CardHeader></CardHeader>
+          <CardContent>{renderIntelXFiles()}</CardContent>
+        </Card>
+      )}
 
       {showResults && (
         <>
@@ -605,9 +613,20 @@ export function SearchForm() {
               </CardContent>
             </Card>
           )}
-
-
         </>
+      )}
+
+      {/* Modal for viewing full file content */}
+      {selectedFile && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white p-4 rounded-md max-w-3xl max-h-screen overflow-auto">
+            <h2 className="text-xl font-bold mb-4">{selectedFile.name}</h2>
+            <pre className="whitespace-pre-wrap">{selectedFile.content}</pre>
+            <div className="mt-4 flex justify-end">
+              <Button onClick={() => setSelectedFile(null)}>Close</Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
