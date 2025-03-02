@@ -1,6 +1,8 @@
-"use server"
+"use server";
+import axios from "axios";
 
-// =============== Shodan Interfaces & Implementation ===============
+/* ==================== Shodan Section ==================== */
+
 interface ShodanDNSRecord {
   subdomain: string;
   type: string;
@@ -49,32 +51,32 @@ interface ShodanResponse {
   error?: string;
 }
 
-// Unified network validation
-const isValidIP = (input: string) => /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(input);
+const isValidIP = (input: string) =>
+  /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(input);
 const isValidDomain = (input: string) =>
   /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/i.test(input);
 
 async function fetchShodanData<T>(url: string): Promise<T> {
   const apiKey = process.env.SHODAN_API_KEY;
   if (!apiKey) throw new Error("Shodan API key not configured");
-
-  const response = await fetch(url);
-  if (!response.ok) {
-    if (response.status === 404) throw new Error("Resource not found");
-    throw new Error(`API Error: ${response.statusText}`);
+  try {
+    const response = await axios.get<T>(url);
+    return response.data;
+  } catch (err: any) {
+    if (err.response && err.response.status === 404) {
+      throw new Error("Resource not found");
+    }
+    throw new Error(`API Error: ${err.response?.statusText || err.message}`);
   }
-  return response.json();
 }
 
 export async function searchShodan(query: string): Promise<ShodanResponse> {
   try {
     const isIP = isValidIP(query);
     const isDomain = isValidDomain(query);
-
     if (!isIP && !isDomain) {
       return { error: "Invalid IP or domain format" };
     }
-
     const [hostData, dnsData] = await Promise.all([
       isIP
         ? fetchShodanData<ShodanHostResponse>(
@@ -85,28 +87,25 @@ export async function searchShodan(query: string): Promise<ShodanResponse> {
         ? fetchShodanData<ShodanDNSResponse>(
             `https://api.shodan.io/dns/domain/${query}?key=${process.env.SHODAN_API_KEY}`
           )
-        : Promise.resolve(undefined)
+        : Promise.resolve(undefined),
     ]);
-
     return { hostData, dnsData };
   } catch (error: any) {
     console.error("Shodan search failed:", error);
     return {
-      error: error.message || "Failed to fetch Shodan data. Please try again."
+      error: error.message || "Failed to fetch Shodan data. Please try again.",
     };
   }
 }
 
-// =============== IntelX Interfaces & Implementation ===============
+/* ==================== IntelX Section ==================== */
+
 interface IntelXSearchInitialResponse {
   id: string;
   status?: number;
   name?: string;
 }
 
-/**
- * We now treat each record as a file record that includes file-specific fields.
- */
 interface IntelXFileRecord {
   systemid: string;
   owner: string;
@@ -135,8 +134,18 @@ interface IntelXSearchResultResponse {
 interface IntelXSearchStatisticResponse {
   date: Array<{ day: string; count: number }>;
   type: Array<{ type: number; typeh: string; count: number }>;
-  media: Array<{ media: number; mediah: string; count: number; filter: boolean }>;
-  bucket: Array<{ bucket: string; bucketh: string; count: number; filter: boolean }>;
+  media: Array<{
+    media: number;
+    mediah: string;
+    count: number;
+    filter: boolean;
+  }>;
+  bucket: Array<{
+    bucket: string;
+    bucketh: string;
+    count: number;
+    filter: boolean;
+  }>;
   heatmap: Record<string, number>;
   total: number;
   status: number;
@@ -150,9 +159,6 @@ interface IntelXResponse {
   error?: string;
 }
 
-/**
- * This interface represents the enriched response that includes file contents.
- */
 interface IntelXSearchResultWithFiles {
   results: IntelXSearchResultResponse;
   files: { [storageid: string]: string };
@@ -160,125 +166,121 @@ interface IntelXSearchResultWithFiles {
 }
 
 /**
- * Generic fetch for IntelX requests.
+ * Generic fetch for IntelX requests using axios.
  */
-async function intelXFetch<T>(url: string, init?: RequestInit): Promise<T> {
+async function intelXFetch<T>(url: string, config = {}): Promise<T> {
   const xKey = process.env.X_KEY;
   if (!xKey) throw new Error("IntelX API key not configured");
-
-  const response = await fetch(url, {
-    ...init,
-    headers: { ...init?.headers, "x-key": xKey }
-  });
-
-  if (!response.ok) {
-    throw new Error(`IntelX API Error: ${response.statusText}`);
+  try {
+    const response = await axios.get<T>(url, {
+      headers: { "x-key": xKey },
+      ...config,
+    });
+    return response.data;
+  } catch (err: any) {
+    throw new Error(`IntelX API Error: ${err.response?.statusText || err.message}`);
   }
-  return response.json();
 }
 
 /**
- * Helper to read file content for a given storageid using the IntelX file read endpoint.
+ * Helper to read full file content using the read endpoint.
+ * Endpoint: https://2.intelx.io/file/read?storageid=xxxx&type=0&bucket=xxxx
  */
-async function readIntelXFile(storageid: string): Promise<string> {
-  // The file read endpoint – it returns the file content as text.
-  const url = `https://2.intelx.io/file/read?type=0&storageid=${storageid}`;
+async function readIntelXFile(
+  storageid: string,
+  bucket: string
+): Promise<string> {
+  const url = `https://2.intelx.io/file/read?storageid=${storageid}&type=0&bucket=${bucket}`;
   return intelXFetch<string>(url);
 }
 
 /**
- * Determines whether the given record's file name suggests it is a text-based file.
+ * Helper to get a file preview using the preview endpoint.
+ * Endpoint: https://2.intelx.io/file/preview?sid=xxxx&f=0&l=8&c=1&m=32&b=xxxx&k=${process.env.X_KEY}
  */
-function isTextBasedFile(record: IntelXFileRecord): boolean {
-  const name = record.name.toLowerCase();
-  return (
-    name.endsWith(".txt") ||
-    name.endsWith(".text") ||
-    name.endsWith(".csv") ||
-    name.includes(".txt") ||
-    name.includes(".text") ||
-    name.includes(".csv")
-  );
+async function previewIntelXFile(
+  storageid: string,
+  bucket: string
+): Promise<string> {
+  const url = `https://2.intelx.io/file/preview?sid=${storageid}&f=0&l=8&c=1&m=32&b=${bucket}&k=${process.env.X_KEY}`;
+  return intelXFetch<string>(url);
 }
 
 /**
- * Retrieves the IntelX search results using the provided id and then for each record that
- * corresponds to a text-based file (txt, text, csv), reads the file content.
+ * Retrieves the IntelX search results using the provided id and then, for each record,
+ * it fetches a file preview using the preview endpoint—without filtering by file extension.
  */
 export async function intelxSearchResultWithFiles(
-  id: string
+  id: string,
+  term: string
 ): Promise<IntelXSearchResultWithFiles> {
   try {
-    // Fetch search result. Adjust parameters (limit, previewlines) as needed.
     const results = await intelXFetch<IntelXSearchResultResponse>(
-      `https://2.intelx.io/intelligent/search/result?id=${id}&limit=10&statistics=1&previewlines=8`
+      `https://2.intelx.io/intelligent/search/result?id=${id}`
     );
 
     const files: { [storageid: string]: string } = {};
 
-    // For each record that appears to be a text file, fetch its content.
     await Promise.all(
       results.records.map(async (record) => {
-        if (isTextBasedFile(record)) {
-          try {
-            const content = await readIntelXFile(record.storageid);
-            files[record.storageid] = content;
-          } catch (fileErr) {
-            console.error(
-              `Failed to read file for storageid ${record.storageid}:`,
-              fileErr
-            );
-          }
+        try {
+          const previewContent = await previewIntelXFile(record.storageid, record.bucket);
+          files[record.storageid] = previewContent;
+        } catch (fileErr) {
+          // Ignore errors for individual files.
         }
       })
     );
 
-    return { results, files };
+    // Optionally, you could filter records based on the preview content if desired.
+    // Here we return all records along with their preview.
+    return {
+      results,
+      files,
+    };
   } catch (error: any) {
-    console.error("IntelX search result with files failed:", error);
     return {
       results: { records: [], status: 0, id: "", count: 0 },
       files: {},
-      error: error.message || "Failed to fetch IntelX search result."
+      error: error.message || "Failed to fetch IntelX search result.",
     };
   }
 }
 
 export async function intelxSearch(term: string): Promise<IntelXResponse> {
   try {
-    // Phase 1: Initiate search
-    const { id } = await intelXFetch<IntelXSearchInitialResponse>(
+    const initResponse = await axios.post<IntelXSearchInitialResponse>(
       "https://2.intelx.io/intelligent/search",
+      { term },
       {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-key": process.env.X_KEY! },
-        body: JSON.stringify({ term })
+        headers: {
+          "Content-Type": "application/json",
+          "x-key": process.env.X_KEY!,
+        },
       }
     );
-
-    // Phase 2: Fetch results and statistics in parallel
+    const { id } = initResponse.data;
     const [results, statistics] = await Promise.all([
       intelXFetch<IntelXSearchResultResponse>(
-        `https://2.intelx.io/intelligent/search/result?id=${id}&limit=10&statistics=1&previewlines=8`
+        `https://2.intelx.io/intelligent/search/result?id=${id}`
       ),
       intelXFetch<IntelXSearchStatisticResponse>(
-        `https://2.intelx.io/intelligent/search/statistic?id=${id}&k=${process.env.X_KEY}`
-      )
+        `https://2.intelx.io/intelligent/search/statistic?id=${id}`
+      ),
     ]);
-
     return { id, results, statistics };
   } catch (error: any) {
-    console.error("IntelX search failed:", error);
     return {
       id: "",
       results: { records: [], status: 0, id: "", count: 0 },
       statistics: {} as IntelXSearchStatisticResponse,
-      error: error.message || "Failed to perform IntelX search"
+      error: error.message || "Failed to perform IntelX search",
     };
   }
 }
 
-// =============== LeakX Interfaces & Implementation ===============
+/* ==================== LeakX Section ==================== */
+
 interface LeakXService {
   port: number;
   protocol: string;
@@ -292,7 +294,7 @@ interface LeakXLeak {
   leak_type: string;
   description: string;
   entries?: number;
-  severity?: 'low' | 'medium' | 'high';
+  severity?: "low" | "medium" | "high";
   last_seen?: string;
 }
 
@@ -306,20 +308,20 @@ interface LeakXResponse {
 async function leakXFetch<T>(endpoint: string): Promise<T> {
   const apiKey = process.env.LEAKIX_API_KEY;
   if (!apiKey) throw new Error("LeakX API key not configured");
-
-  const response = await fetch(`https://leakix.net/${endpoint}`, {
-    headers: {
-      "api-key": apiKey,
-      "Accept": "application/json"
+  try {
+    const response = await axios.get<T>(`https://leakix.net/${endpoint}`, {
+      headers: {
+        "api-key": apiKey,
+        Accept: "application/json",
+      },
+    });
+    return response.data;
+  } catch (err: any) {
+    if (err.response && err.response.status === 404) {
+      throw new Error("Resource not found");
     }
-  });
-
-  if (!response.ok) {
-    if (response.status === 404) throw new Error("Resource not found");
-    throw new Error(`API Error: ${response.statusText} (${response.status})`);
+    throw new Error(`API Error: ${err.response?.statusText || err.message}`);
   }
-
-  return response.json();
 }
 
 export async function searchLeakX(domain: string): Promise<LeakXResponse> {
@@ -328,24 +330,19 @@ export async function searchLeakX(domain: string): Promise<LeakXResponse> {
       Services?: LeakXService[];
       Leaks?: LeakXLeak[];
     }>(`domain/${domain}`);
-
     if (!data.Services?.length && !data.Leaks?.length) {
       return { message: "No services or leaks found for this domain" };
     }
-
     return {
       services: data.Services,
-      leaks: data.Leaks
+      leaks: data.Leaks,
     };
   } catch (error: any) {
-    console.error("LeakX search failed:", error);
-
     if (error.message.includes("Resource not found")) {
       return { message: "No results found for this domain" };
     }
-
     return {
-      error: error.message || "Failed to fetch LeakX data. Please try again later."
+      error: error.message || "Failed to fetch LeakX data. Please try again later.",
     };
   }
 }

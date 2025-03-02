@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import { Toaster } from "sonner"
+import "react-calendar-heatmap/dist/styles.css";
 import "./globals.css"
 
 const inter = Inter({ subsets: ["latin"] })
@@ -49,7 +50,7 @@ export const metadata: Metadata = {
       "max-snippet": -1,
     },
   },
-    generator: 'v0.dev'
+    generator: 'haktrak.com'
 }
 
 export default function RootLayout({

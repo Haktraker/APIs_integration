@@ -15,7 +15,7 @@ export function LoadingScreen({ open, onClose }: LoadingScreenProps) {
     if (open) {
       const timer = setTimeout(() => {
         onClose?.()
-      }, 8000) // 8 seconds
+      }, 3000) // 8 seconds
 
       return () => clearTimeout(timer)
     }

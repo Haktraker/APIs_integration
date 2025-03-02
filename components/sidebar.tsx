@@ -40,8 +40,6 @@ export function Sidebar() {
         <div className="p-3">
           <div className="space-y-1">
             <SidebarItem icon={Search} label="Search" />
-            <SidebarItem icon={Shield} label="Protection" />
-            <SidebarItem icon={AlertCircle} label="Threats" />
           </div>
         </div>
       </div>
