@@ -25,7 +25,7 @@ export function AuthNavbar() {
   return (
     <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 items-center px-4">
-        <Link href="/dashboard" className="flex items-center space-x-2">
+        <Link href="/" className="flex items-center space-x-2">
           <span className="text-2xl font-bold">
             <span className="text-blue-500">Hak</span>
             <span className="text-white">Trak</span>
@@ -37,15 +37,15 @@ export function AuthNavbar() {
           {/* <Button asChild variant="ghost" className="text-gray-300 hover:text-white">
             <Link href="/dashboard">Dashboard</Link>
           </Button> */}
-          <Button asChild variant="ghost" className="text-gray-300 hover:text-white">
+          {/* <Button asChild variant="ghost" className="text-gray-300 hover:text-white">
             <Link href="/darkweb">Dark Web</Link>
-          </Button>
-          <Button asChild variant="ghost" className="text-gray-300 hover:text-white">
+          </Button> */}
+          {/* <Button asChild variant="ghost" className="text-gray-300 hover:text-white">
             <Link href="/shodan">Shodan</Link>
           </Button>
           <Button asChild variant="ghost" className="text-gray-300 hover:text-white">
             <Link href="/intelx">IntelX</Link>
-          </Button>
+          </Button> */}
         </nav>
         
         <div className="ml-auto flex items-center space-x-4">

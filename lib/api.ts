@@ -420,3 +420,131 @@ export async function intelxSearchResultWithFiles(
     };
   }
 }
+
+// LeakIX Types
+interface LeakIXResult {
+  event_type: string;
+  ip: string;
+  host: string;
+  port: string;
+  summary: string;
+  time: string;
+  leak: {
+    stage: string;
+    severity: string;
+    dataset: {
+      rows: number;
+      files: number;
+      size: number;
+    }
+  };
+  http?: {
+    url: string;
+    title: string;
+  };
+  geoip?: {
+    country_name: string;
+    city_name: string;
+  };
+}
+
+interface LeakIXError {
+  error: string;
+}
+
+interface LeakIXResponse {
+  results: LeakIXResult[];
+  error?: string;
+  total?: number;
+}
+
+// LeakIX Search Function
+export async function leakIXSearch(query: string, page: number = 0): Promise<LeakIXResponse> {
+  const apiKey = process.env.LEAKX_API_KEY;
+  
+  if (!apiKey) {
+    return {
+      results: [],
+      error: "LeakIX API key not configured"
+    };
+  }
+
+  try {
+    const response = await fetch(
+      `https://leakix.net/search?scope=leak&page=${page}&q=${encodeURIComponent(query)}`,
+      {
+        headers: {
+          'accept': 'application/json',
+          'api-key': apiKey
+        },
+        next: { revalidate: 0 } // Disable cache for this request
+      }
+    );
+
+    // Handle rate limiting
+    if (response.status === 429) {
+      const waitTime = response.headers.get('x-limited-for');
+      return {
+        results: [],
+        error: `Rate limited. Please wait ${waitTime} before trying again.`
+      };
+    }
+
+    if (!response.ok) {
+      return {
+        results: [],
+        error: `LeakIX API error: ${response.statusText}`
+      };
+    }
+
+    const data = await response.json() as LeakIXResult[];
+
+    // Transform the response to match our expected format
+    return {
+      results: data,
+      total: data.length,
+    };
+
+  } catch (error) {
+    console.error('LeakIX search error:', error);
+    return {
+      results: [],
+      error: 'Failed to perform LeakIX search'
+    };
+  }
+}
+
+// Helper function to get formatted results
+export async function getFormattedLeakIXResults(query: string): Promise<{
+  formattedResults: Array<{
+    title: string;
+    summary: string;
+    date: string;
+    severity: string;
+    location?: string;
+  }>;
+  error?: string;
+}> {
+  const response = await leakIXSearch(query);
+
+  if (response.error) {
+    return {
+      formattedResults: [],
+      error: response.error
+    };
+  }
+
+  const formattedResults = response.results.map(result => ({
+    title: result.http?.title || result.host || 'Untitled',
+    summary: result.summary,
+    date: new Date(result.time).toLocaleDateString(),
+    severity: result.leak.severity,
+    location: result.geoip ? 
+      `${result.geoip.city_name}, ${result.geoip.country_name}`.trim() : 
+      undefined
+  }));
+
+  return {
+    formattedResults
+  };
+}

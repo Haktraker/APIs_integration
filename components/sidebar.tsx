@@ -5,11 +5,11 @@ import { Button } from "@/components/ui/button"
 import { 
   ChevronLeft, 
   ChevronRight, 
-  Search, 
   Globe, 
   Scan, 
   Shield,
-  Layers
+  Layers,
+  Home
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
@@ -68,11 +68,18 @@ export function Sidebar() {
             Navigation
           </h2>
           <div className="space-y-1">
+
+          <SidebarItem 
+              icon={Home} 
+              label="Dashboard" 
+              href="/dashboard" 
+            />
             <SidebarItem 
               icon={Layers} 
               label="Dark & Deep Web" 
               href="/darkweb" 
             />
+
             <SidebarItem 
               icon={Globe} 
               label="Attack Surface" 
@@ -86,7 +93,7 @@ export function Sidebar() {
             <SidebarItem 
               icon={Shield} 
               label="Vulns Scan" 
-              href="/vulnscan" 
+              href="/vulsScan" 
             />
           </div>
         </div>
