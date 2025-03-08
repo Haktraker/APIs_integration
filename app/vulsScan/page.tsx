@@ -10,7 +10,7 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 import { toast } from "sonner"
-import { Loader2, AlertTriangle, MapPin, Calendar, Building2 } from "lucide-react"
+import { Loader2, AlertTriangle, MapPin, Calendar, Building2, FileText } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { getFormattedLeakIXResults } from "@/lib/api/services/leakix"
 import DashboardLayout from "../dashboard-layout"
@@ -23,7 +23,7 @@ type SearchFormData = z.infer<typeof searchSchema>
 
 type FormattedResult = {
   title: string;
-  summary: string;
+  eventSummaries?: string[];
   date: string;
   severity: string;
   location?: string;
@@ -188,9 +188,22 @@ function VulnScanContent() {
                 </div>
 
                 <div className="grid gap-4">
-                  <div className="text-gray-300">
-                    {result.summary}
-                  </div>
+                  {/* Event Summaries Section */}
+                  {result.eventSummaries && result.eventSummaries.length > 0 && (
+                    <div className="space-y-2">
+                      <div className="flex items-center text-sm font-medium text-gray-300">
+                        <FileText className="w-4 h-4 mr-2" />
+                        Event Summaries
+                      </div>
+                      <div className="pl-6 space-y-2">
+                        {result.eventSummaries.map((summary, idx) => (
+                          <div key={idx} className="text-sm text-gray-300 p-2 bg-gray-800/50 rounded-md">
+                            {summary}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {result.software && (
                     <div className="text-sm text-gray-400">

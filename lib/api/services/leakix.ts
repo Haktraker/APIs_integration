@@ -4,63 +4,105 @@ import { request } from "../client";
 import { isValidIP, isValidDomain } from "@/lib/utils";
 
 // Base interfaces for LeakIX API responses
-interface L9Event {
+interface GeoIP {
+  continent_name: string;
+  region_iso_code: string;
+  city_name: string;
+  country_iso_code: string;
+  country_name: string;
+  region_name: string;
+  location: {
+    lat: number;
+    lon: number;
+  };
+}
+
+interface Network {
+  organization_name: string;
+  asn: number;
+  network: string;
+}
+
+interface Certificate {
+  cn: string;
+  domain: string[];
+  issuer_name: string;
+  not_before: string;
+  not_after: string;
+  valid: boolean;
+}
+
+interface SSL {
+  version: string;
+  certificate: Certificate;
+}
+
+interface HTTP {
+  url: string;
+  status: number;
+  title: string;
+  server?: string;
+}
+
+interface EventItem {
   event_type: string;
+  event_source: string;
   ip: string;
   host: string;
   port: string;
   protocol: string;
   time: string;
   summary: string;
-  http?: {
-    url: string;
-    status: number;
-    title: string;
+  http?: HTTP;
+  ssl?: SSL;
+  tags?: string[];
+  geoip?: GeoIP;
+  network?: Network;
+  service?: {
+    software?: {
+      name?: string;
+      version?: string;
+    }
   };
-  ssl?: {
-    version: string;
-    certificate: {
-      cn: string;
-      domain: string[];
-      issuer_name: string;
-      not_before: string;
-      not_after: string;
-      valid: boolean;
-    };
+  leak?: {
+    severity?: string;
+    type?: string;
   };
-  service: {
-    software: {
-      name: string;
-      version: string;
-    };
-  };
-  geoip?: {
-    continent_name: string;
-    country_name: string;
-    city_name: string;
-  };
-  network?: {
-    organization_name: string;
-    asn: number;
-    network: string;
-  };
+  [key: string]: any;
+}
+
+interface LeakItem {
+  Summary?: string;
+  Ip: string;
+  resource_id: string;
+  open_ports: string[];
+  leak_count?: number;
+  leak_event_count?: number;
+  events: EventItem[];
+  plugins?: string[];
+  geoip?: GeoIP;
+  network?: Network;
+  creation_date: string;
+  update_date: string;
+  fresh: boolean;
+  record_age: number;
+  hidden: boolean;
 }
 
 interface LeakIXResponse {
-  Services: L9Event[] | null;
-  Leaks: L9Event[] | null;
+  Services: any[] | null;
+  Leaks: LeakItem[] | null;
 }
 
-interface FormattedLeakIXResult {
-  ips: string[];
-  domains: string[];
+interface DetailedLeakIXResult {
+  leaks: LeakItem[] | null;
   error?: string;
 }
 
 // Original interface for backward compatibility
 export interface FormattedResult {
   title: string;
-  summary: string;
+  eventSummaries?: string[];
   date: string;
   severity: string;
   location?: string;
@@ -81,6 +123,23 @@ export interface FormattedResult {
 export interface FormattedLeakIXResponse {
   formattedResults: FormattedResult[];
   error?: string;
+}
+
+/**
+ * Format date string safely
+ * @param dateStr - Date string to format
+ * @returns Formatted date string or fallback
+ */
+function formatDate(dateStr: string): string {
+  try {
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) {
+      return 'Date unavailable';
+    }
+    return date.toLocaleDateString();
+  } catch (error) {
+    return 'Date unavailable';
+  }
 }
 
 /**
@@ -122,67 +181,89 @@ export async function getFormattedLeakIXResults(query: string): Promise<Formatte
       }
     );
 
-    // If no services or leaks found
-    if (!data.Services && !data.Leaks) {
+    // If no leaks found
+    if (!data.Leaks || data.Leaks.length === 0) {
       return {
         formattedResults: [],
-        error: "No results found"
+        error: "No vulnerabilities found"
       };
     }
 
     const formattedResults: FormattedResult[] = [];
 
-    // Format Services data
-    if (data.Services) {
-      const serviceResults = data.Services.map(service => ({
-        title: service.http?.title || service.host || 'Unknown Service',
-        summary: service.summary,
-        date: new Date(service.time).toLocaleDateString(),
-        severity: 'info',
-        location: service.geoip ? 
-          `${service.geoip.city_name || ''}, ${service.geoip.country_name || ''}`.trim().replace(/^,\s*/, '') : 
-          undefined,
-        ip: service.ip,
-        port: service.port,
-        software: service.service?.software.name ? {
-          name: service.service?.software.name,
-          version: service.service?.software.version || 'Unknown'
-        } : undefined,
-        ssl: service.ssl ? {
-          version: service.ssl.version,
-          validUntil: new Date(service.ssl.certificate.not_after).toLocaleDateString(),
-          issuer: service.ssl.certificate.issuer_name
-        } : undefined,
-        organization: service.network?.organization_name
-      }));
-      formattedResults.push(...serviceResults);
-    }
-
     // Format Leaks data
-    if (data.Leaks) {
-      const leakResults = data.Leaks.map(leak => ({
-        title: leak.http?.title || leak.host || 'Unknown Leak',
-        summary: leak.summary,
-        date: new Date(leak.time).toLocaleDateString(),
-        severity: 'medium',
-        location: leak.geoip ? 
-          `${leak.geoip.city_name || ''}, ${leak.geoip.country_name || ''}`.trim().replace(/^,\s*/, '') : 
-          undefined,
-        ip: leak.ip,
-        port: leak.port,
-        software: leak.service?.software.name ? {
-          name: leak.service?.software.name,
-          version: leak.service?.software.version || 'Unknown'
-        } : undefined,
-        ssl: leak.ssl ? {
-          version: leak.ssl.version,
-          validUntil: new Date(leak.ssl.certificate.not_after).toLocaleDateString(),
-          issuer: leak.ssl.certificate.issuer_name
-        } : undefined,
-        organization: leak.network?.organization_name
-      }));
-      formattedResults.push(...leakResults);
-    }
+    data.Leaks.forEach(leak => {
+      // Process each event in the leak
+      if (leak.events && leak.events.length > 0) {
+        leak.events.forEach(event => {
+          // Extract event summaries
+          const eventSummary = event.summary || '';
+          
+          // Determine title with fallbacks
+          let title = event.host || '';
+          if (!title && event.event_source) {
+            title = `${event.event_source} Vulnerability`;
+          }
+          if (!title) {
+            title = leak.resource_id || 'Unknown Resource';
+          }
+          
+          // Determine severity
+          let severity = 'medium';
+          if (event.leak && event.leak.severity) {
+            severity = event.leak.severity;
+          }
+          
+          // Get software info
+          let software = undefined;
+          if (event.service && event.service.software && event.service.software.name) {
+            software = {
+              name: event.service.software.name,
+              version: event.service.software.version || 'Unknown'
+            };
+          }
+          
+          // Get SSL info
+          let ssl = undefined;
+          if (event.ssl && event.ssl.certificate) {
+            ssl = {
+              version: event.ssl.version || 'Unknown',
+              validUntil: formatDate(event.ssl.certificate.not_after),
+              issuer: event.ssl.certificate.issuer_name || 'Unknown'
+            };
+          }
+          
+          formattedResults.push({
+            title: title,
+            eventSummaries: eventSummary ? [eventSummary] : undefined,
+            date: formatDate(event.time || leak.creation_date),
+            severity: severity,
+            location: event.geoip ? 
+              `${event.geoip.city_name || ''}, ${event.geoip.country_name || ''}`.trim().replace(/^,\s*/, '') : 
+              undefined,
+            ip: event.ip || leak.Ip,
+            port: event.port || (leak.open_ports && leak.open_ports.length > 0 ? leak.open_ports[0] : undefined),
+            software: software,
+            ssl: ssl,
+            organization: event.network?.organization_name || leak.network?.organization_name
+          });
+        });
+      } else {
+        // If no events, create a single result from the leak itself
+        formattedResults.push({
+          title: leak.resource_id || 'Unknown Resource',
+          eventSummaries: leak.Summary ? [leak.Summary] : undefined,
+          date: formatDate(leak.creation_date),
+          severity: 'info',
+          location: leak.geoip ? 
+            `${leak.geoip.city_name || ''}, ${leak.geoip.country_name || ''}`.trim().replace(/^,\s*/, '') : 
+            undefined,
+          ip: leak.Ip,
+          port: leak.open_ports && leak.open_ports.length > 0 ? leak.open_ports[0] : undefined,
+          organization: leak.network?.organization_name
+        });
+      }
+    });
 
     return {
       formattedResults
@@ -205,17 +286,16 @@ export async function getFormattedLeakIXResults(query: string): Promise<Formatte
 }
 
 /**
- * Get formatted results for a host (IP) from LeakIX
+ * Get detailed leak results from LeakIX for a host
  * @param ip - IP address to search for
- * @returns Formatted results containing unique IPs and domains
+ * @returns Detailed leak information
  */
-export async function getHostResults(ip: string): Promise<FormattedLeakIXResult> {
+export async function getHostResults(ip: string): Promise<DetailedLeakIXResult> {
   const apiKey = process.env.LEAKX_API_KEY;
 
   if (!apiKey) {
     return {
-      ips: [],
-      domains: [],
+      leaks: null,
       error: "LeakIX API key not configured"
     };
   }
@@ -231,37 +311,36 @@ export async function getHostResults(ip: string): Promise<FormattedLeakIXResult>
       }
     );
 
-    return formatResults(data);
+    return {
+      leaks: data.Leaks
+    };
   } catch (error: any) {
     // Handle rate limiting
     if (error.message?.includes('429')) {
       return {
-        ips: [],
-        domains: [],
+        leaks: null,
         error: 'Rate limited. Please wait before trying again.'
       };
     }
 
     return {
-      ips: [],
-      domains: [],
+      leaks: null,
       error: error.message || 'Failed to perform host lookup'
     };
   }
 }
 
 /**
- * Get formatted results for a domain from LeakIX
+ * Get detailed leak results from LeakIX for a domain
  * @param domain - Domain to search for
- * @returns Formatted results containing unique IPs and domains
+ * @returns Detailed leak information
  */
-export async function getDomainResults(domain: string): Promise<FormattedLeakIXResult> {
+export async function getDomainResults(domain: string): Promise<DetailedLeakIXResult> {
   const apiKey = process.env.LEAKX_API_KEY;
 
   if (!apiKey) {
     return {
-      ips: [],
-      domains: [],
+      leaks: null,
       error: "LeakIX API key not configured"
     };
   }
@@ -277,58 +356,21 @@ export async function getDomainResults(domain: string): Promise<FormattedLeakIXR
       }
     );
 
-    return formatResults(data);
+    return {
+      leaks: data.Leaks
+    };
   } catch (error: any) {
     // Handle rate limiting
     if (error.message?.includes('429')) {
       return {
-        ips: [],
-        domains: [],
+        leaks: null,
         error: 'Rate limited. Please wait before trying again.'
       };
     }
 
     return {
-      ips: [],
-      domains: [],
+      leaks: null,
       error: error.message || 'Failed to perform domain lookup'
     };
   }
-}
-
-/**
- * Format LeakIX response to extract unique IPs and domains
- * @param data - Raw LeakIX API response
- * @returns Formatted results with unique IPs and domains
- */
-function formatResults(data: LeakIXResponse): FormattedLeakIXResult {
-  const uniqueIps = new Set<string>();
-  const uniqueDomains = new Set<string>();
-
-  // Process Services
-  if (data.Services) {
-    for (const service of data.Services) {
-      if (service.ip) uniqueIps.add(service.ip);
-      if (service.host) uniqueDomains.add(service.host);
-      if (service.ssl?.certificate?.domain) {
-        service.ssl.certificate.domain.forEach(d => uniqueDomains.add(d));
-      }
-    }
-  }
-
-  // Process Leaks
-  if (data.Leaks) {
-    for (const leak of data.Leaks) {
-      if (leak.ip) uniqueIps.add(leak.ip);
-      if (leak.host) uniqueDomains.add(leak.host);
-      if (leak.ssl?.certificate?.domain) {
-        leak.ssl.certificate.domain.forEach(d => uniqueDomains.add(d));
-      }
-    }
-  }
-
-  return {
-    ips: Array.from(uniqueIps),
-    domains: Array.from(uniqueDomains)
-  };
 } 
