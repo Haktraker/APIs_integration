@@ -31,7 +31,7 @@ export default function SurfacePage() {
   const [isLoading, setIsLoading] = useState(false)
   const [results, setResults] = useState<ShodanResponse | null>(null)
   const [selectedIP, setSelectedIP] = useState<string | null>(null)
-
+console.log(results,"results")
   const {
     register,
     handleSubmit,
@@ -182,6 +182,34 @@ export default function SurfacePage() {
                         <dd>{results.hostData.ip_str}</dd>
                       </div>
                       <div>
+                        <dt className="text-gray-400">Host Names</dt>
+                      {results.hostData.hostnames?.map((hostname) => (
+                        <>
+
+                        <dd
+                          key={hostname}
+                          className="px-2 py-1 my-1 bg-blue-500/20 rounded text-sm"
+                        >
+                          {hostname}
+                        </dd>
+                        </>
+                      ))}
+                      </div>
+                      <div>
+                        <dt className="text-gray-400">Domains</dt>
+                      {results.hostData.domains?.map((domain) => (
+                        <>
+
+                        <dd
+                          key={domain}
+                          className="px-2 py-1 my-1 bg-blue-500/20 rounded text-sm"
+                        >
+                          {domain}
+                        </dd>
+                        </>
+                      ))}
+                      </div>
+                      <div>
                         <dt className="text-gray-400">Organization</dt>
                         <dd>{results.hostData.org || 'N/A'}</dd>
                       </div>
@@ -192,6 +220,10 @@ export default function SurfacePage() {
                       <div>
                         <dt className="text-gray-400">ISP</dt>
                         <dd>{results.hostData.isp || 'N/A'}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-gray-400">OS</dt>
+                        <dd>{results.hostData.os || 'N/A'}</dd>
                       </div>
                     </dl>
                   </div>

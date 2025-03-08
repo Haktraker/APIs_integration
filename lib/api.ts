@@ -19,6 +19,7 @@ export interface ShodanHostResponse {
   ip_str?: string;
   ports?: number[];
   hostnames?: string[];
+  domains?: string[];
   org?: string;
   country_name?: string;
   isp?: string;
