@@ -1,41 +1,40 @@
 // app/search/page.tsx
 "use client"
 
-import React, { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { toast } from "sonner"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import DashboardLayout from "../dashboard-layout"
 
 export default function SearchPage() {
-  const [query, setQuery] = useState("")
-  const [loading, setLoading] = useState(false)
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    // ... do something or route to another page
-    toast.success(`You searched for: ${query}`)
-    setLoading(false)
-  }
-
   return (
-    <div className="space-y-4">
-      <h1 className="text-xl font-semibold">Search</h1>
-      <form onSubmit={handleSubmit} className="space-y-2">
-        <div>
-          <Label htmlFor="query">Query</Label>
-          <Input
-            id="query"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Enter IP or domain"
-          />
+    <DashboardLayout>
+      <div className="container mx-auto py-6 space-y-6">
+        <div className="flex flex-col space-y-2">
+          <h1 className="text-3xl font-bold">Comprehensive Search</h1>
+          <p className="text-muted-foreground">
+            Search across multiple intelligence sources
+          </p>
         </div>
-        <Button type="submit" disabled={loading}>
-          {loading ? "Searching..." : "Search"}
-        </Button>
-      </form>
-    </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Comprehensive Search</CardTitle>
+            <CardDescription>
+              This is a placeholder for the comprehensive search page.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p>
+              The Comprehensive Search page will allow you to:
+            </p>
+            <ul className="list-disc pl-5 mt-2 space-y-1">
+              <li>Search across multiple intelligence sources</li>
+              <li>Find information from various databases</li>
+              <li>Discover connections between different data points</li>
+              <li>Generate comprehensive intelligence reports</li>
+            </ul>
+          </CardContent>
+        </Card>
+      </div>
+    </DashboardLayout>
   )
 }

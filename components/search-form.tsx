@@ -293,12 +293,31 @@ export function SearchForm() {
   );
 
   const renderIntelXFiles = () => {
-    const records = intelXFileResults?.results.records || [];
-    const paginatedRecords = records.slice(
-      (currentPage.files - 1) * PAGE_SIZE,
-      currentPage.files * PAGE_SIZE
-    );
-    if (records.length === 0) {
+    // Add more detailed debugging to understand the structure of intelXFileResults
+    console.log('IntelX Files Debug:', { 
+      hasResults: !!intelXFileResults,
+      recordsLength: intelXFileResults?.results?.records?.length || 0,
+      filesCount: intelXFileResults?.files ? Object.keys(intelXFileResults.files).length : 0,
+      resultsStructure: intelXFileResults ? Object.keys(intelXFileResults) : [],
+      error: intelXFileResults?.error
+    });
+    
+    // Show error message if there's an error
+    if (intelXFileResults?.error) {
+      return (
+        <Card>
+          <CardHeader>
+            <CardTitle>Files</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-red-500">Error: {intelXFileResults.error}</p>
+          </CardContent>
+        </Card>
+      );
+    }
+    
+    // Early return if no results are available
+    if (!intelXFileResults || !intelXFileResults.results || !intelXFileResults.results.records) {
       return (
         <Card>
           <CardHeader>
@@ -310,10 +329,33 @@ export function SearchForm() {
         </Card>
       );
     }
+    
+    const records = intelXFileResults.results.records;
+    
+    // Check if records array is empty
+    if (records.length === 0) {
+      return (
+        <Card>
+          <CardHeader>
+            <CardTitle>Files</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p>No files found in the search results.</p>
+          </CardContent>
+        </Card>
+      );
+    }
+    
+    // Calculate paginated records
+    const paginatedRecords = records.slice(
+      (currentPage.files - 1) * PAGE_SIZE,
+      currentPage.files * PAGE_SIZE
+    );
+    
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Files</CardTitle>
+          <CardTitle>Files ({records.length})</CardTitle>
         </CardHeader>
         <CardContent>
           <Table>
@@ -326,7 +368,7 @@ export function SearchForm() {
             </TableHeader>
             <TableBody>
               {paginatedRecords.map((record) => {
-                const content = intelXFileResults?.files[record.storageid] || "";
+                const content = intelXFileResults.files[record.storageid] || "";
                 return (
                   <TableRow
                     key={record.storageid}
@@ -358,6 +400,19 @@ export function SearchForm() {
     );
   };
 
+  // Separate function to determine if we should show the files section
+  const shouldShowFilesSection = () => {
+    if (!intelXFileResults) return false;
+    
+    // Show if we have records
+    if (intelXFileResults.results?.records?.length > 0) return true;
+    
+    // Show if we have an error (to display the error message)
+    if (intelXFileResults.error) return true;
+    
+    return false;
+  };
+
   return (
     <div className="space-y-6 p-4">
       <Card className="shadow-lg">
@@ -370,20 +425,87 @@ export function SearchForm() {
               setLoading(true);
               setProgress(0);
               setStatusMessage("Starting search...");
+              
+              // Reset previous results
+              setResults(null);
+              setIntelXResults(null);
+              setIntelXFileResults(null);
+              
               try {
+                // Step 1: Query Shodan
                 setStatusMessage("Querying Shodan...");
                 const shodanResponse = await searchShodan(values.query);
                 setResults(shodanResponse);
                 setProgress(30);
 
+                // Step 2: Query IntelX
                 setStatusMessage("Querying IntelX...");
                 const intelXResponse = await intelxSearch(values.query);
+                console.log('IntelX search response:', {
+                  id: intelXResponse.id,
+                  recordsCount: intelXResponse.results?.records?.length || 0,
+                  hasError: !!intelXResponse.error
+                });
+                
+                if (intelXResponse.error) {
+                  toast.error(`IntelX search error: ${intelXResponse.error}`);
+                  setProgress(100);
+                  setStatusMessage("Search partially complete (IntelX failed)");
+                  return;
+                }
+                
+                // Set the statistics even if there are no results
                 setIntelXResults(intelXResponse.statistics);
                 setProgress(60);
 
+                // Step 3: Fetch file contents if we have an ID
                 setStatusMessage("Fetching file contents...");
+                if (!intelXResponse.id) {
+                  const errorMsg = "No IntelX search ID returned, cannot fetch files";
+                  toast.error(errorMsg);
+                  setIntelXFileResults({
+                    results: { records: [], status: 0, id: "", count: 0 },
+                    files: {},
+                    error: errorMsg
+                  });
+                  setProgress(100);
+                  setStatusMessage("Search partially complete (IntelX files unavailable)");
+                  return;
+                }
+                
+                // Check if we have records before trying to fetch files
+                if (!intelXResponse.results || !intelXResponse.results.records || intelXResponse.results.records.length === 0) {
+                  const warningMsg = "IntelX search returned no records, skipping file content fetch";
+                  toast.warning(warningMsg);
+                  setIntelXFileResults({
+                    results: { records: [], status: 0, id: intelXResponse.id, count: 0 },
+                    files: {},
+                    error: warningMsg
+                  });
+                  setProgress(100);
+                  setStatusMessage("Search complete (no IntelX files found)");
+                  return;
+                }
+                
+                // Fetch file contents
                 const intelXFilesResponse = await intelxSearchResultWithFiles(intelXResponse.id);
+                console.log('IntelX files response:', {
+                  hasError: !!intelXFilesResponse.error,
+                  recordsCount: intelXFilesResponse.results?.records?.length || 0,
+                  filesCount: Object.keys(intelXFilesResponse.files || {}).length
+                });
+                
+                // Set the results even if there's an error
                 setIntelXFileResults(intelXFilesResponse);
+                
+                if (intelXFilesResponse.error) {
+                  toast.error(`IntelX files error: ${intelXFilesResponse.error}`);
+                  setProgress(100);
+                  setStatusMessage("Search partially complete (IntelX files failed)");
+                  return;
+                }
+                
+                // All steps completed successfully
                 setProgress(100);
                 setStatusMessage("Search complete");
                 toast.success("Search completed successfully");
@@ -399,9 +521,6 @@ export function SearchForm() {
                 const plainError = JSON.parse(JSON.stringify(errorObj));
                 toast.error(plainError.message);
                 console.error("Search error:", plainError);
-                setResults(null);
-                setIntelXResults(null);
-                setIntelXFileResults(null);
               } finally {
                 setLoading(false);
                 setSubmitting(false);
@@ -462,9 +581,14 @@ export function SearchForm() {
           </CardHeader>
           <CardContent className="space-y-6">
             {renderIntelXStats()}
-            {intelXFileResults && renderIntelXFiles()}
           </CardContent>
         </Card>
+      )}
+
+      {shouldShowFilesSection() && (
+        <div className="mt-6">
+          {renderIntelXFiles()}
+        </div>
       )}
 
       {selectedFile && (

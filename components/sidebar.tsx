@@ -2,32 +2,50 @@
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Search, Shield, AlertCircle, ChevronLeft, ChevronRight } from "lucide-react"
+import { Search, Shield, AlertCircle, ChevronLeft, ChevronRight, Globe, Database, Network, Layers } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import Link from "next/link"
+import { usePathname } from "next/navigation"
 
 export function Sidebar() {
   const [isCollapsed, setIsCollapsed] = useState(false)
+  const pathname = usePathname()
 
   const SidebarItem = ({
     icon: Icon,
     label,
+    href,
   }: {
     icon: React.ElementType
     label: string
-  }) => (
-    <TooltipProvider delayDuration={0}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button variant="ghost" className={cn("w-full justify-start", isCollapsed && "justify-center")}>
-            <Icon className="h-4 w-4" />
-            {!isCollapsed && <span className="ml-2">{label}</span>}
-          </Button>
-        </TooltipTrigger>
-        {isCollapsed && <TooltipContent side="right">{label}</TooltipContent>}
-      </Tooltip>
-    </TooltipProvider>
-  )
+    href: string
+  }) => {
+    const isActive = pathname === href
+    
+    return (
+      <TooltipProvider delayDuration={0}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Link href={href} className="block w-full">
+              <Button 
+                variant={isActive ? "secondary" : "ghost"} 
+                className={cn(
+                  "w-full justify-start", 
+                  isCollapsed && "justify-center",
+                  isActive && "bg-secondary"
+                )}
+              >
+                <Icon className="h-4 w-4" />
+                {!isCollapsed && <span className="ml-2">{label}</span>}
+              </Button>
+            </Link>
+          </TooltipTrigger>
+          {isCollapsed && <TooltipContent side="right">{label}</TooltipContent>}
+        </Tooltip>
+      </TooltipProvider>
+    )
+  }
 
   return (
     <div
@@ -37,9 +55,17 @@ export function Sidebar() {
       )}
     >
       <div className="space-y-4 py-4">
-        <div className="p-3">
+        <div className="px-3 py-2">
+          <h2 className={cn("mb-2 px-2 text-lg font-semibold tracking-tight", isCollapsed && "sr-only")}>
+            Navigation
+          </h2>
           <div className="space-y-1">
-            <SidebarItem icon={Search} label="Search" />
+            <SidebarItem icon={Search} label="Search" href="/" />
+            <SidebarItem icon={Layers} label="Dark & Deep Web" href="/darkweb" />
+            <SidebarItem icon={Globe} label="Shodan" href="/shodan" />
+            <SidebarItem icon={Database} label="IntelX" href="/intelx" />
+            <SidebarItem icon={Network} label="Network Analysis" href="/network" />
+            <SidebarItem icon={Shield} label="Test Page" href="/test" />
           </div>
         </div>
       </div>

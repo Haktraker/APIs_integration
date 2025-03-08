@@ -1,39 +1,39 @@
-// app/intelx/page.tsx
 "use client"
 
-import React, { useEffect, useState } from "react"
-import { intelxSearch, intelxSearchResultWithFiles } from "@/lib/api"
-import { IntelXSearchStatisticResponse, IntelXSearchResultWithFiles } from "../../types"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import DashboardLayout from "../dashboard-layout"
 
 export default function IntelXPage() {
-  const [stats, setStats] = useState<IntelXSearchStatisticResponse | null>(null)
-  const [files, setFiles] = useState<IntelXSearchResultWithFiles | null>(null)
-
-  useEffect(() => {
-    const term = "example.com" // or retrieve from a global store
-    intelxSearch(term).then((res) => {
-      setStats(res.statistics)
-      if (res.id) {
-        intelxSearchResultWithFiles(res.id).then(setFiles)
-      }
-    })
-  }, [])
-
   return (
-    <div className="space-y-4">
-      <h1 className="text-xl font-semibold">IntelX Results</h1>
-      {stats && (
-        <div>
-          <h2 className="text-lg font-semibold mb-2">Statistics</h2>
-          {/* Render your PieCharts, LineCharts, etc. */}
+    <DashboardLayout>
+      <div className="container mx-auto py-6 space-y-6">
+        <div className="flex flex-col space-y-2">
+          <h1 className="text-3xl font-bold">IntelX Search</h1>
+          <p className="text-muted-foreground">
+            Search for intelligence data from various sources
+          </p>
         </div>
-      )}
-      {files && (
-        <div>
-          <h2 className="text-lg font-semibold mb-2">File Results</h2>
-          {/* Render your table of text-based files */}
-        </div>
-      )}
-    </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>IntelX Search</CardTitle>
+            <CardDescription>
+              This is a placeholder for the IntelX search page.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p>
+              The IntelX search page will allow you to:
+            </p>
+            <ul className="list-disc pl-5 mt-2 space-y-1">
+              <li>Search for intelligence data</li>
+              <li>Find information from various sources</li>
+              <li>Discover leaked data</li>
+              <li>Analyze intelligence reports</li>
+            </ul>
+          </CardContent>
+        </Card>
+      </div>
+    </DashboardLayout>
   )
-}
+} 
