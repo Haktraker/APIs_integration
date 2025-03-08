@@ -60,12 +60,8 @@ export function Sidebar() {
             Navigation
           </h2>
           <div className="space-y-1">
-            <SidebarItem icon={Search} label="Search" href="/" />
+            <SidebarItem icon={Search} label="Home" href="/" />
             <SidebarItem icon={Layers} label="Dark & Deep Web" href="/darkweb" />
-            <SidebarItem icon={Globe} label="Shodan" href="/shodan" />
-            <SidebarItem icon={Database} label="IntelX" href="/intelx" />
-            <SidebarItem icon={Network} label="Network Analysis" href="/network" />
-            <SidebarItem icon={Shield} label="Test Page" href="/test" />
           </div>
         </div>
       </div>
