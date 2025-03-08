@@ -23,13 +23,15 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   searchShodan,
+  type ShodanResponse,
+  type ShodanHostResponse,
+} from "@/lib/api/services/shodan";
+import {
   intelxSearch,
   intelxSearchResultWithFiles,
-  type ShodanResponse,
   type IntelXSearchResultWithFiles,
   type IntelXSearchStatisticResponse,
-  ShodanHostResponse,
-} from "@/lib/api";
+} from "@/lib/api/services/intelx";
 
 const PAGE_SIZE = 50;
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#AF19FF"];

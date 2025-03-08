@@ -111,9 +111,9 @@ const apiClient = {
    * Make a request with custom options
    */
   async request<T>(url: string, options: RequestInit = {}): Promise<T> {
-    try {
-      const response = await fetch(url, {
-        ...options,
+  try {
+    const response = await fetch(url, {
+      ...options,
         next: { revalidate: 0 }
       });
       
@@ -130,9 +130,9 @@ const apiClient = {
       }
     } catch (error: any) {
       console.error(`Request failed: ${url}`, error);
-      throw error;
-    }
+    throw error;
   }
+}
 };
 
 export async function searchShodan(query: string): Promise<ShodanResponse> {
@@ -352,7 +352,7 @@ export async function intelxSearchResultWithFiles(
     let allRecords: IntelXFileRecord[] = [];
     let page: IntelXSearchResultResponse;
     
-    const url = `https://2.intelx.io/intelligent/search/result?id=${id}`;
+      const url = `https://2.intelx.io/intelligent/search/result?id=${id}`;
     console.log('Fetching IntelX results from:', url);
     
     try {
@@ -373,12 +373,12 @@ export async function intelxSearchResultWithFiles(
       }
     }
     
-    if (page.records) {
+      if (page.records) {
       allRecords = page.records.filter(record => {
         const fileName = record.name.toLowerCase();
         return fileName.endsWith('.txt') || fileName.endsWith('.text');
       });
-    }
+      }
 
     const results: IntelXSearchResultResponse = {
       records: allRecords,
@@ -397,45 +397,60 @@ export async function intelxSearchResultWithFiles(
 
     const files: { [storageid: string]: string } = {};
     const BATCH_SIZE = 10;
-    const batches = [];
     
     for (let i = 0; i < results.records.length; i += BATCH_SIZE) {
-      batches.push(results.records.slice(i, i + BATCH_SIZE));
-    }
-    
-    for (let i = 0; i < batches.length; i++) {
-      const batch = batches[i];
-      await Promise.all(
+      const batch = results.records.slice(i, i + BATCH_SIZE);
+    await Promise.all(
         batch.map(async (record) => {
           try {
             if (!record.name.toLowerCase().match(/\.(txt|text)$/)) {
               return;
             }
 
-            const url = `https://2.intelx.io/file/view?license=api&f=0&storageid=${encodeURIComponent(
-              record.storageid
-            )}&bucket=${encodeURIComponent(record.bucket)}&k=${
-              process.env.X_KEY
-            }`;
+            // Remove API key from URL and add it to headers instead
+            const url = `https://2.intelx.io/file/view?f=0&license=api&k=${process.env.X_KEY}&storageid=${
+              encodeURIComponent(record.storageid)
+            }&bucket=${encodeURIComponent(record.bucket)}`;
             
-            const content = await apiClient.request<string>(url);
+            const content = await apiClient.request<string>(url, {
+              headers: {
+                "x-key": process.env.X_KEY!,
+                "Accept": "*/*",
+                "Accept-Encoding": "gzip, deflate, br",
+                "Connection": "keep-alive"
+              }
+            });
             
             if (typeof content === 'string') {
               files[record.storageid] = content;
+            } else {
+              files[record.storageid] = "Content format not supported";
             }
-          } catch (err) {
-            console.error(`Failed to fetch content for text file ${record.name}:`, err);
-            files[record.storageid] = "Content unavailable";
+          } catch (err: any) {
+            console.error(`Failed to fetch content for file ${record.name}:`, err);
+            
+            // Provide more specific error messages
+            if (err.message?.includes('Payment Required')) {
+              files[record.storageid] = 'Premium content - Subscription required';
+          } else {
+              files[record.storageid] = `Unable to fetch content: ${err.message || 'Unknown error'}`;
           }
-        })
-      );
+        }
+      })
+    );
     }
 
-    const response = { results, files };
+    const response = { 
+      results, 
+      files,
+      error: Object.values(files).every(content => 
+        content.includes('Premium content') || content.includes('Unable to fetch')
+      ) ? 'Some or all content requires premium access' : undefined
+    };
 
     // Cache the file results
     fileResultsCache[id] = {
-      timestamp: now,
+      timestamp: Date.now(),
       data: response
     };
 
@@ -540,17 +555,308 @@ export async function leakIXSearch(query: string, page: number = 0): Promise<Lea
     };
 
   } catch (error) {
-    console.error('LeakIX search error:', error);
+    console.error(' search error:', error);
     return {
       results: [],
-      error: 'Failed to perform LeakIX search'
+      error: 'Failed to perform search'
     };
   }
 }
 
-// Helper function to get formatted results
+// Update LeakIXDetails interface to handle both host and domain responses
+interface LeakIXDetails {
+  Services?: Array<{
+    event_type: string;
+    ip: string;
+    host: string;
+    port: string;
+    protocol: string;
+    summary: string;
+    time: string;
+    http?: {
+      title: string;
+      header: {
+        server?: string;
+      };
+    };
+    ssl?: {
+      version: string;
+      certificate: {
+        cn: string;
+        domain: string[];
+        key_algo: string;
+        key_size: number;
+        issuer_name: string;
+        not_before: string;
+        not_after: string;
+        valid: boolean;
+      };
+    };
+    service: {
+      software: {
+        name: string;
+        version: string;
+        os: string;
+      };
+    };
+    geoip?: {
+      continent_name: string;
+      country_name: string;
+      city_name: string;
+      location: {
+        lat: number;
+        lon: number;
+      };
+    };
+    network?: {
+      organization_name: string;
+      asn: number;
+      network: string;
+    };
+  }>;
+  Leaks?: LeakIXResult[] | null;
+}
+
+// Update the getFormattedLeakIXResults function to handle both IP and domain lookups
 export async function getFormattedLeakIXResults(query: string): Promise<{
   formattedResults: Array<{
+    title: string;
+    summary: string;
+    date: string;
+    severity: string;
+    location?: string;
+    ip?: string;
+    port?: string;
+    software?: {
+      name: string;
+      version: string;
+    };
+    ssl?: {
+      version: string;
+      validUntil: string;
+      issuer: string;
+    };
+    organization?: string;
+  }>;
+  error?: string;
+}> {
+  const apiKey = process.env.LEAKX_API_KEY;
+  
+  if (!apiKey) {
+    return {
+      formattedResults: [],
+      error: "LeakIX API key not configured"
+    };
+  }
+
+  try {
+    const isIP = isValidIP(query);
+    const isDomain = isValidDomain(query);
+    
+    if (!isIP && !isDomain) {
+      return {
+        formattedResults: [],
+        error: "Invalid IP or domain format"
+      };
+    }
+
+    const endpoint = isIP ? `host/${query}` : `domain/${query}`;
+    const response = await fetch(
+      `https://leakix.net/${endpoint}`,
+      {
+        headers: {
+          'accept': 'application/json',
+          'api-key': apiKey
+        },
+        next: { revalidate: 0 }
+      }
+    );
+
+    if (response.status === 429) {
+      const waitTime = response.headers.get('x-limited-for');
+      return {
+        formattedResults: [],
+        error: `Rate limited. Please wait ${waitTime} before trying again.`
+      };
+    }
+
+    if (!response.ok) {
+      return {
+        formattedResults: [],
+        error: `Error: ${response.statusText}`
+      };
+    }
+
+    const data = await response.json() as LeakIXDetails;
+    console.log('Raw API Response:', JSON.stringify(data, null, 2));
+
+    const formattedResults = (data.Services || []).map(service => ({
+      title: service.http?.title || service.host || 'Unknown Service',
+      summary: service.summary,
+      date: new Date(service.time).toLocaleDateString(),
+      severity: 'info',
+      location: service.geoip ? 
+        `${service.geoip.city_name}, ${service.geoip.country_name}`.trim() : 
+        undefined,
+      ip: service.ip,
+      port: service.port,
+      software: {
+        name: service.service.software.name || 'Unknown',
+        version: service.service.software.version || 'Unknown'
+      },
+      ssl: service.ssl ? {
+        version: service.ssl.version,
+        validUntil: new Date(service.ssl.certificate.not_after).toLocaleDateString(),
+        issuer: service.ssl.certificate.issuer_name
+      } : undefined,
+      organization: service.network?.organization_name
+    }));
+
+    if (data.Leaks) {
+      const leakResults = data.Leaks.map(leak => ({
+        title: leak.http?.title || leak.host || 'Unknown Leak',
+        summary: leak.summary,
+        date: new Date(leak.time).toLocaleDateString(),
+        severity: leak.leak?.severity || 'unknown',
+        location: leak.geoip ? 
+          `${leak.geoip.city_name}, ${leak.geoip.country_name}`.trim() : 
+          undefined,
+        ip: leak.ip,
+        port: leak.port,
+        software: {
+          name: 'Unknown',
+          version: 'Unknown'
+        },
+        ssl: undefined,
+        organization: undefined
+      }));
+
+      formattedResults.push(...leakResults);
+    }
+
+    return {
+      formattedResults
+    };
+
+  } catch (error) {
+    console.error('LeakIX lookup error:', error);
+    console.error('Full error details:', JSON.stringify(error, null, 2));
+    return {
+      formattedResults: [],
+      error: 'Failed to perform lookup'
+    };
+  }
+}
+
+// Add new interface for LeakIX Host Details response
+interface LeakIXHostDetails {
+  Services?: Array<{
+    event_type: string;
+    event_source: string;
+    event_pipeline: string[];
+    ip: string;
+    host: string;
+    port: string;
+    transport: string[];
+    protocol: string;
+    summary: string;
+    time: string;
+    service: {
+      software: {
+        name: string;
+        version: string;
+        os: string;
+      };
+    };
+    geoip?: {
+      continent_name: string;
+      country_name: string;
+      city_name: string;
+      location: {
+        lat: number;
+        lon: number;
+      };
+    };
+    network?: {
+      organization_name: string;
+      asn: number;
+      network: string;
+    };
+  }>;
+  Leaks?: LeakIXResult[] | null;
+}
+
+// Add new function to get host details
+export async function getLeakIXHostDetails(ip: string): Promise<{
+  services?: LeakIXHostDetails['Services'];
+  leaks?: LeakIXResult[];
+  error?: string;
+}> {
+  const apiKey = process.env.LEAKX_API_KEY;
+  
+  if (!apiKey) {
+    return {
+      error: "LeakIX API key not configured"
+    };
+  }
+
+  try {
+    const response = await fetch(
+      `https://leakix.net/host/${ip}`,
+      {
+        headers: {
+          'accept': 'application/json',
+          'api-key': apiKey
+        },
+        next: { revalidate: 0 }
+      }
+    );
+
+    // Handle rate limiting
+    if (response.status === 429) {
+      const waitTime = response.headers.get('x-limited-for');
+      return {
+        error: `Rate limited. Please wait ${waitTime} before trying again.`
+      };
+    }
+
+    if (!response.ok) {
+      return {
+        error: `Error: ${response.statusText}`
+      };
+    }
+
+    const data = await response.json() as LeakIXHostDetails;
+
+    return {
+      services: data.Services,
+      leaks: data.Leaks || [],
+    };
+
+  } catch (error) {
+    console.error('LeakIX host details error:', error);
+    return {
+      error: 'Failed to fetch host details'
+    };
+  }
+}
+
+// Add a helper function to get formatted host details
+export async function getFormattedLeakIXHostDetails(ip: string): Promise<{
+  formattedDetails: Array<{
+    host: string;
+    port: string;
+    software: {
+      name: string;
+      version: string;
+    };
+    location?: string;
+    organization?: string;
+    lastSeen: string;
+    protocol: string;
+    summary: string;
+  }>;
+  leaks: Array<{
     title: string;
     summary: string;
     date: string;
@@ -559,26 +865,44 @@ export async function getFormattedLeakIXResults(query: string): Promise<{
   }>;
   error?: string;
 }> {
-  const response = await leakIXSearch(query);
+  const response = await getLeakIXHostDetails(ip);
 
   if (response.error) {
     return {
-      formattedResults: [],
+      formattedDetails: [],
+      leaks: [],
       error: response.error
     };
   }
 
-  const formattedResults = response.results.map(result => ({
-    title: result.http?.title || result.host || 'Untitled',
-    summary: result.summary,
-    date: new Date(result.time).toLocaleDateString(),
-    severity: result.leak.severity,
-    location: result.geoip ? 
-      `${result.geoip.city_name}, ${result.geoip.country_name}`.trim() : 
+  const formattedDetails = (response.services || []).map(service => ({
+    host: service.host,
+    port: service.port,
+    software: {
+      name: service.service.software.name || 'Unknown',
+      version: service.service.software.version || 'Unknown'
+    },
+    location: service.geoip ? 
+      `${service.geoip.city_name}, ${service.geoip.country_name}`.trim() : 
+      undefined,
+    organization: service.network?.organization_name,
+    lastSeen: new Date(service.time).toLocaleDateString(),
+    protocol: service.protocol,
+    summary: service.summary
+  }));
+
+  const formattedLeaks = (response.leaks || []).map(leak => ({
+    title: leak.http?.title || leak.host || 'Untitled',
+    summary: leak.summary,
+    date: new Date(leak.time).toLocaleDateString(),
+    severity: leak.leak.severity,
+    location: leak.geoip ? 
+      `${leak.geoip.city_name}, ${leak.geoip.country_name}`.trim() : 
       undefined
   }));
 
   return {
-    formattedResults
+    formattedDetails,
+    leaks: formattedLeaks
   };
 }

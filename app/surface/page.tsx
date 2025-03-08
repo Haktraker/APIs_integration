@@ -18,7 +18,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 import { toast } from "sonner"
 import { Loader2 } from "lucide-react"
-import { searchShodan, ShodanResponse, ShodanHostResponse, ShodanDNSResponse } from "@/lib/api"
+import { searchShodan, type ShodanResponse, type ShodanHostResponse, type ShodanDNSResponse } from "@/lib/api/services/shodan"
 import DashboardLayout from "../dashboard-layout"
 
 const searchSchema = z.object({

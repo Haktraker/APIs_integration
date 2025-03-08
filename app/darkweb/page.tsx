@@ -27,7 +27,7 @@ import {
   intelxSearchResultWithFiles,
   type IntelXSearchResultWithFiles,
   type IntelXSearchStatisticResponse,
-} from "@/lib/api"
+} from "@/lib/api/services/intelx"
 import DashboardLayout from "../dashboard-layout"
 
 const PAGE_SIZE = 50

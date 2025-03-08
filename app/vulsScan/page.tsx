@@ -10,9 +10,9 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 import { toast } from "sonner"
-import { Loader2, AlertTriangle, MapPin, Calendar } from "lucide-react"
+import { Loader2, AlertTriangle, MapPin, Calendar, Building2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
-import { getFormattedLeakIXResults } from "@/lib/api"
+import { getFormattedLeakIXResults } from "@/lib/api/services/leakix"
 import DashboardLayout from "../dashboard-layout"
 
 const searchSchema = z.object({
@@ -27,6 +27,18 @@ type FormattedResult = {
   date: string;
   severity: string;
   location?: string;
+  ip?: string;
+  port?: string;
+  software?: {
+    name: string;
+    version: string;
+  };
+  ssl?: {
+    version: string;
+    validUntil: string;
+    issuer: string;
+  };
+  organization?: string;
 }
 
 // Create a separate component for the search functionality
@@ -55,7 +67,7 @@ function VulnScanContent() {
     
     try {
       const response = await getFormattedLeakIXResults(searchTerm)
-      
+      console.log(response,"getFormattedLeakIXResults")
       if (response.error) {
         setError(response.error)
         toast.error(response.error)
@@ -152,9 +164,16 @@ function VulnScanContent() {
                 className="bg-gray-800/30 rounded-lg p-6"
               >
                 <div className="flex justify-between items-start mb-4">
-                  <h3 className="text-lg font-semibold">
-                    {result.title}
-                  </h3>
+                  <div>
+                    <h3 className="text-lg font-semibold">
+                      {result.title}
+                    </h3>
+                    {result.ip && result.port && (
+                      <p className="text-sm text-gray-400">
+                        {result.ip}:{result.port}
+                      </p>
+                    )}
+                  </div>
                   <Badge className={`${getSeverityColor(result.severity)}`}>
                     {result.severity}
                   </Badge>
@@ -165,11 +184,31 @@ function VulnScanContent() {
                     {result.summary}
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-400">
+                  {result.software && (
+                    <div className="text-sm text-gray-400">
+                      Software: {result.software.name} {result.software.version}
+                    </div>
+                  )}
+
+                  {result.ssl && (
+                    <div className="text-sm text-gray-400">
+                      SSL: {result.ssl.version} (Valid until {result.ssl.validUntil})
+                      <br />
+                      Issuer: {result.ssl.issuer}
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-gray-400">
                     {result.location && (
                       <div className="flex items-center">
                         <MapPin className="w-4 h-4 mr-2" />
                         {result.location}
+                      </div>
+                    )}
+                    {result.organization && (
+                      <div className="flex items-center">
+                        <Building2 className="w-4 h-4 mr-2" />
+                        {result.organization}
                       </div>
                     )}
                     <div className="flex items-center">
@@ -216,7 +255,7 @@ export default function VulnScanPage() {
   return (
     <DashboardLayout>
       <div className="container mx-auto p-6">
-        <h1 className="text-2xl font-bold mb-6">Vulnerability Scan</h1>
+        {/* <h1 className="text-2xl font-bold mb-6">Vulnerability Scan</h1> */}
         <Suspense fallback={<LoadingFallback />}>
           <VulnScanContent />
         </Suspense>
