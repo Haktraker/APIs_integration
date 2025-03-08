@@ -1,6 +1,5 @@
 "use server";
-
-import { apiClient } from "../client";
+import { get, post, request } from "../client";
 
 export interface IntelXSearchInitialResponse {
   id: string;
@@ -79,11 +78,11 @@ const fileResultsCache: { [key: string]: { timestamp: number, data: IntelXSearch
 
 const intelXFetch = async <T>(url: string, options: RequestInit = {}): Promise<T> => {
   const xKey = process.env.X_KEY;
-  
+
   if (!xKey) {
     throw new Error("IntelX API key not configured");
   }
-  
+
   const headers = {
     "x-key": xKey,
     "Accept": "*/*",
@@ -91,8 +90,8 @@ const intelXFetch = async <T>(url: string, options: RequestInit = {}): Promise<T
     "Connection": "keep-alive",
     ...options.headers,
   };
-  
-  return apiClient.request<T>(url, { ...options, headers });
+
+  return request<T>(url, { ...options, headers });
 };
 
 export async function intelxSearch(term: string, sort: number = 4): Promise<IntelXResponse> {
@@ -106,7 +105,7 @@ export async function intelxSearch(term: string, sort: number = 4): Promise<Inte
   }
 
   try {
-    const initData = await apiClient.post<IntelXSearchInitialResponse>(
+    const initData = await post<IntelXSearchInitialResponse>(
       "https://2.intelx.io/intelligent/search",
       { term, sort },
       {
@@ -115,9 +114,9 @@ export async function intelxSearch(term: string, sort: number = 4): Promise<Inte
         }
       }
     );
-    
+
     const id = initData.id;
-    
+
     const [results, statistics] = await Promise.all([
       intelXFetch<IntelXSearchResultResponse>(
         `https://2.intelx.io/intelligent/search/result?id=${id}`
@@ -133,11 +132,11 @@ export async function intelxSearch(term: string, sort: number = 4): Promise<Inte
       timestamp: now,
       data: response
     };
-    
+
     if (results.records && results.records.length > 0) {
       searchResultsCache[id] = results;
     }
-    
+
     return response;
   } catch (error: any) {
     if (cachedResult) {
@@ -167,10 +166,10 @@ export async function intelxSearchResultWithFiles(id: string): Promise<IntelXSea
     console.log('Starting intelxSearchResultWithFiles with ID:', id);
     let allRecords: IntelXFileRecord[] = [];
     let page: IntelXSearchResultResponse;
-    
+
     const url = `https://2.intelx.io/intelligent/search/result?id=${id}`;
     console.log('Fetching IntelX results from:', url);
-    
+
     try {
       page = await intelXFetch<IntelXSearchResultResponse>(url);
       console.log('Received page with records count:', page.records?.length || 0);
@@ -181,13 +180,13 @@ export async function intelxSearchResultWithFiles(id: string): Promise<IntelXSea
         throw new Error('Failed to fetch results and no cached results available');
       }
     }
-    
+
     if (!page.records || page.records.length === 0) {
       if (searchResultsCache[id]) {
         page = searchResultsCache[id];
       }
     }
-    
+
     if (page.records) {
       allRecords = page.records.filter(record => {
         const fileName = record.name.toLowerCase();
@@ -203,8 +202,8 @@ export async function intelxSearchResultWithFiles(id: string): Promise<IntelXSea
     };
 
     if (allRecords.length === 0) {
-      return { 
-        results, 
+      return {
+        results,
         files: {},
         error: "No text files found to fetch contents for"
       };
@@ -212,7 +211,7 @@ export async function intelxSearchResultWithFiles(id: string): Promise<IntelXSea
 
     const files: { [storageid: string]: string } = {};
     const BATCH_SIZE = 10;
-    
+
     for (let i = 0; i < results.records.length; i += BATCH_SIZE) {
       const batch = results.records.slice(i, i + BATCH_SIZE);
       await Promise.all(
@@ -222,11 +221,10 @@ export async function intelxSearchResultWithFiles(id: string): Promise<IntelXSea
               return;
             }
 
-            const url = `https://2.intelx.io/file/view?f=0&license=api&storageid=${
-              encodeURIComponent(record.storageid)
-            }&bucket=${encodeURIComponent(record.bucket)}`;
-            
-            const content = await apiClient.request<string>(url, {
+            const url = `https://2.intelx.io/file/view?f=0&license=api&storageid=${encodeURIComponent(record.storageid)
+              }&bucket=${encodeURIComponent(record.bucket)}`;
+
+            const content = await request<string>(url, {
               headers: {
                 "x-key": process.env.X_KEY!,
                 "Accept": "*/*",
@@ -234,7 +232,7 @@ export async function intelxSearchResultWithFiles(id: string): Promise<IntelXSea
                 "Connection": "keep-alive"
               }
             });
-            
+
             if (typeof content === 'string') {
               files[record.storageid] = content;
             } else {
@@ -242,7 +240,7 @@ export async function intelxSearchResultWithFiles(id: string): Promise<IntelXSea
             }
           } catch (err: any) {
             console.error(`Failed to fetch content for file ${record.name}:`, err);
-            
+
             if (err.message?.includes('Payment Required')) {
               files[record.storageid] = 'Premium content - Subscription required';
             } else {
@@ -253,10 +251,10 @@ export async function intelxSearchResultWithFiles(id: string): Promise<IntelXSea
       );
     }
 
-    const response = { 
-      results, 
+    const response = {
+      results,
       files,
-      error: Object.values(files).every(content => 
+      error: Object.values(files).every(content =>
         content.includes('Premium content') || content.includes('Unable to fetch')
       ) ? 'Some or all content requires premium access' : undefined
     };

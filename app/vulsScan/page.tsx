@@ -66,23 +66,28 @@ function VulnScanContent() {
     setError(null)
     
     try {
+      console.log('Searching for:', searchTerm);
       const response = await getFormattedLeakIXResults(searchTerm)
-      console.log(response,"getFormattedLeakIXResults")
+      console.log('Search response:', response);
+
       if (response.error) {
         setError(response.error)
         toast.error(response.error)
         return
       }
 
-      setResults(response.formattedResults)
-      
       if (response.formattedResults.length === 0) {
         toast.info("No vulnerabilities found")
       }
+
+      setResults(response.formattedResults)
+      console.log('Setting results:', response.formattedResults);
+      
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Search failed'
       setError(message)
       toast.error(message)
+      console.error('Search error:', error);
     } finally {
       setIsLoading(false)
     }
@@ -95,6 +100,7 @@ function VulnScanContent() {
   // Perform initial search if query parameter exists
   useEffect(() => {
     if (initialQuery) {
+      console.log('Initial query:', initialQuery);
       performSearch(initialQuery)
     }
   }, [initialQuery])
@@ -105,6 +111,7 @@ function VulnScanContent() {
       case 'high': return 'bg-orange-500'
       case 'medium': return 'bg-yellow-500'
       case 'low': return 'bg-blue-500'
+      case 'info': return 'bg-blue-400'
       default: return 'bg-gray-500'
     }
   }
@@ -114,6 +121,7 @@ function VulnScanContent() {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
+      className="space-y-6"
     >
       <h1 className="text-2xl font-bold mb-6">Vulnerability Scan</h1>
 
@@ -152,7 +160,7 @@ function VulnScanContent() {
       </div>
 
       {/* Results Section */}
-      {results.length > 0 && (
+      {results && results.length > 0 && (
         <div className="space-y-6">
           <div className="grid gap-6">
             {results.map((result, index) => (
@@ -232,7 +240,7 @@ function VulnScanContent() {
       )}
 
       {/* No Results Message */}
-      {!isLoading && results.length === 0 && !error && initialQuery && (
+      {!isLoading && (!results || results.length === 0) && !error && initialQuery && (
         <div className="text-center text-gray-400 mt-8">
           No vulnerabilities found for this search.
         </div>
@@ -255,7 +263,6 @@ export default function VulnScanPage() {
   return (
     <DashboardLayout>
       <div className="container mx-auto p-6">
-        {/* <h1 className="text-2xl font-bold mb-6">Vulnerability Scan</h1> */}
         <Suspense fallback={<LoadingFallback />}>
           <VulnScanContent />
         </Suspense>
