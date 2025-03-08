@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label"
 import { useSearchParams } from "next/navigation"
 import { serverLogin } from "@/app/actions/auth"
 import { useAuthStore } from "@/lib/auth"
-import { useState } from "react"
+import { useState, Suspense } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
@@ -24,7 +24,8 @@ const loginSchema = z.object({
 
 type LoginFormData = z.infer<typeof loginSchema>
 
-export default function LoginPage() {
+// Separate the form component
+function LoginForm() {
   const searchParams = useSearchParams()
   const callbackUrl = searchParams.get('callbackUrl')
   const login = useAuthStore((state) => state.login)
@@ -61,6 +62,84 @@ export default function LoginPage() {
   }
 
   return (
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+      {callbackUrl && (
+        <input type="hidden" name="callbackUrl" value={callbackUrl} />
+      )}
+      
+      {/* Email Field */}
+      <div className="space-y-2">
+        <Label htmlFor="email">Email Address</Label>
+        <Input
+          id="email"
+          type="email"
+          placeholder="Enter your email"
+          {...register("email")}
+          className={errors.email ? "border-red-500" : ""}
+          disabled={isLoading}
+        />
+        {errors.email && (
+          <p className="text-red-500 text-sm">{errors.email.message}</p>
+        )}
+      </div>
+
+      {/* Password Field */}
+      <div className="space-y-2">
+        <div className="flex justify-between items-center">
+          <Label htmlFor="password">Password</Label>
+          <Link 
+            href="/forgot-password" 
+            className="text-sm text-blue-400 hover:text-blue-300"
+          >
+            Forgot password?
+          </Link>
+        </div>
+        <Input
+          id="password"
+          type="password"
+          placeholder="Enter your password"
+          {...register("password")}
+          className={errors.password ? "border-red-500" : ""}
+          disabled={isLoading}
+        />
+        {errors.password && (
+          <p className="text-red-500 text-sm">{errors.password.message}</p>
+        )}
+      </div>
+
+      {/* Submit Button */}
+      <Button
+        type="submit"
+        className="w-full bg-blue-600 hover:bg-blue-700"
+        disabled={isLoading}
+      >
+        {isLoading ? (
+          <>
+            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            Signing in...
+          </>
+        ) : (
+          "Sign In"
+        )}
+      </Button>
+
+      {/* Sign Up Link */}
+      <p className="text-center text-gray-400 text-sm">
+        Don't have an account?{" "}
+        <Link 
+          href="/register" 
+          className="text-blue-400 hover:text-blue-300"
+        >
+          Create one now
+        </Link>
+      </p>
+    </form>
+  )
+}
+
+// Main page component
+export default function LoginPage() {
+  return (
     <>
       <Navbar />
       <div className="min-h-screen bg-background pt-16">
@@ -91,74 +170,13 @@ export default function LoginPage() {
                 </p>
               </div>
 
-              <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-                {/* Email Field */}
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email Address</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="Enter your email"
-                    {...register("email")}
-                    className={errors.email ? "border-red-500" : ""}
-                    disabled={isLoading}
-                  />
-                  {errors.email && (
-                    <p className="text-red-500 text-sm">{errors.email.message}</p>
-                  )}
+              <Suspense fallback={
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
                 </div>
-
-                {/* Password Field */}
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <Label htmlFor="password">Password</Label>
-                    <Link 
-                      href="/forgot-password" 
-                      className="text-sm text-blue-400 hover:text-blue-300"
-                    >
-                      Forgot password?
-                    </Link>
-                  </div>
-                  <Input
-                    id="password"
-                    type="password"
-                    placeholder="Enter your password"
-                    {...register("password")}
-                    className={errors.password ? "border-red-500" : ""}
-                    disabled={isLoading}
-                  />
-                  {errors.password && (
-                    <p className="text-red-500 text-sm">{errors.password.message}</p>
-                  )}
-                </div>
-
-                {/* Submit Button */}
-                <Button
-                  type="submit"
-                  className="w-full bg-blue-600 hover:bg-blue-700"
-                  disabled={isLoading}
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Signing in...
-                    </>
-                  ) : (
-                    "Sign In"
-                  )}
-                </Button>
-
-                {/* Sign Up Link */}
-                <p className="text-center text-gray-400 text-sm">
-                  Don't have an account?{" "}
-                  <Link 
-                    href="/register" 
-                    className="text-blue-400 hover:text-blue-300"
-                  >
-                    Create one now
-                  </Link>
-                </p>
-              </form>
+              }>
+                <LoginForm />
+              </Suspense>
             </div>
 
             {/* Additional Info */}

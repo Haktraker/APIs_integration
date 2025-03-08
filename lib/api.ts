@@ -312,13 +312,11 @@ export async function intelxSearchResultWithFiles(
     console.log('Fetching IntelX results from:', url);
     
     try {
-      // Request all results at once by setting a large limit
       const fullUrl = `${url}&limit=10000`;
       page = await intelXFetch<IntelXSearchResultResponse>(fullUrl);
       console.log('Received page with records count:', page.records?.length || 0);
     } catch (error) {
       console.error('Error fetching results, will try cached results:', error);
-      // If direct fetch fails, use cached results if available
       if (searchResultsCache[id]) {
         console.log('Using cached results with count:', searchResultsCache[id].records.length);
         page = searchResultsCache[id];
@@ -327,7 +325,6 @@ export async function intelxSearchResultWithFiles(
       }
     }
     
-    // If we still don't have records, check the cache
     if (!page.records || page.records.length === 0) {
       if (searchResultsCache[id]) {
         console.log('Direct fetch returned 0 records, using cached results with count:', 
@@ -339,10 +336,15 @@ export async function intelxSearchResultWithFiles(
     }
     
     if (page.records) {
-      allRecords = page.records;
+      // Filter for text files only
+      allRecords = page.records.filter(record => {
+        const fileName = record.name.toLowerCase();
+        return fileName.endsWith('.txt') || fileName.endsWith('.text');
+      });
+      console.log('Filtered text files count:', allRecords.length);
     }
 
-    console.log('Total records collected:', allRecords.length);
+    console.log('Total text records collected:', allRecords.length);
     
     const results: IntelXSearchResultResponse = {
       records: allRecords,
@@ -351,19 +353,18 @@ export async function intelxSearchResultWithFiles(
       count: allRecords.length,
     };
 
-    // If we still have no records, return early
     if (allRecords.length === 0) {
-      console.warn('No records found after all attempts, returning empty result');
+      console.warn('No text files found after filtering, returning empty result');
       return { 
         results, 
         files: {},
-        error: "No records found to fetch file contents for"
+        error: "No text files found to fetch contents for"
       };
     }
 
     const files: { [storageid: string]: string } = {};
     
-    // Limit the number of concurrent requests to avoid overwhelming the server
+    // Limit concurrent requests
     const BATCH_SIZE = 10;
     const batches = [];
     
@@ -371,7 +372,7 @@ export async function intelxSearchResultWithFiles(
       batches.push(results.records.slice(i, i + BATCH_SIZE));
     }
     
-    console.log(`Processing ${batches.length} batches of file content requests`);
+    console.log(`Processing ${batches.length} batches of text file content requests`);
     
     for (let i = 0; i < batches.length; i++) {
       const batch = batches[i];
@@ -380,6 +381,11 @@ export async function intelxSearchResultWithFiles(
       await Promise.all(
         batch.map(async (record) => {
           try {
+            // Only process text files
+            if (!record.name.toLowerCase().match(/\.(txt|text)$/)) {
+              return;
+            }
+
             const url = `https://2.intelx.io/file/view?license=api&f=0&storageid=${encodeURIComponent(
               record.storageid
             )}&bucket=${encodeURIComponent(record.bucket)}&k=${
@@ -387,16 +393,22 @@ export async function intelxSearchResultWithFiles(
             }`;
             
             const content = await apiClient.request<string>(url);
-            files[record.storageid] = content;
+            
+            // Additional check to ensure content is text
+            if (typeof content === 'string') {
+              files[record.storageid] = content;
+            } else {
+              console.warn(`Skipping non-text content for file ${record.name}`);
+            }
           } catch (err) {
-            console.error(`Failed to fetch content for file ${record.name}:`, err);
+            console.error(`Failed to fetch content for text file ${record.name}:`, err);
             files[record.storageid] = "Content unavailable";
           }
         })
       );
     }
     
-    console.log('Completed fetching file contents, total files:', Object.keys(files).length);
+    console.log('Completed fetching text file contents, total files:', Object.keys(files).length);
 
     return { results, files };
   } catch (error: any) {
@@ -404,7 +416,7 @@ export async function intelxSearchResultWithFiles(
     return {
       results: { records: [], status: 0, id: id, count: 0 },
       files: {},
-      error: error.message || "Failed to fetch IntelX search result.",
+      error: error.message || "Failed to fetch IntelX text file contents.",
     };
   }
 }
