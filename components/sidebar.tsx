@@ -17,7 +17,7 @@ export function Sidebar() {
     label,
     href,
   }: {
-    icon: React.ElementType
+    icon: React.FC<{ className?: string }>
     label: string
     href: string
   }) => {

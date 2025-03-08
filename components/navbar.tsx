@@ -9,6 +9,7 @@ import Image from "next/image"
 import { User } from "lucide-react"
 import { ChangePasswordForm } from "./change-password-form"
 import { logout } from "@/lib/auth"
+import Link from "next/link"
 
 export function Navbar() {
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false)
@@ -20,47 +21,30 @@ export function Navbar() {
   }
 
   return (
-    <header className="border-b">
-      <div className="flex h-16 items-center px-4">
-        <Image
-          src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Logo_Dark%20(1)-yjskR4803oYo2QW6vazyu5WEOg0vVJ.webp"
-          alt="HakTrak Logo"
-          width={120}
-          height={30}
-          priority
-        />
-        <div className="ml-auto flex items-center space-x-4">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon">
-                <User className="h-5 w-5" />
-                <span className="sr-only">User menu</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onSelect={() => setIsChangePasswordOpen(true)}>Change Password</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="bg-primary text-primary-foreground hover:bg-primary/90"
-            onClick={handleLogout}
-          >
-            Logout
-          </Button>
+    <nav className="fixed top-0 w-full z-50 bg-black/50 backdrop-blur-sm border-b border-gray-800">
+      <div className="container mx-auto px-4">
+        <div className="flex items-center justify-between h-16">
+          <Link href="/" className="flex items-center space-x-2">
+            <span className="text-2xl font-bold">
+              <span className="text-blue-500">Hak</span>
+              <span className="text-white">Trak</span>
+            </span>
+          </Link>
+          
+          <div className="flex items-center space-x-4">
+            <Button asChild variant="ghost" className="text-gray-300 hover:text-white">
+              <Link href="/about">About</Link>
+            </Button>
+            <Button asChild variant="ghost" className="text-gray-300 hover:text-white">
+              <Link href="/features">Features</Link>
+            </Button>
+            <Button asChild className="bg-blue-600 hover:bg-blue-700 text-white">
+              <Link href="/login">Login</Link>
+            </Button>
+          </div>
         </div>
       </div>
-
-      <Dialog open={isChangePasswordOpen} onOpenChange={setIsChangePasswordOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Change Password</DialogTitle>
-          </DialogHeader>
-          <ChangePasswordForm onSuccess={() => setIsChangePasswordOpen(false)} />
-        </DialogContent>
-      </Dialog>
-    </header>
+    </nav>
   )
 }
 

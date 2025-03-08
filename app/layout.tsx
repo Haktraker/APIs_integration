@@ -3,6 +3,7 @@ import { Inter } from "next/font/google"
 import { Toaster } from "sonner"
 import "react-calendar-heatmap/dist/styles.css";
 import "./globals.css"
+import "./animations.css"
 
 const inter = Inter({ subsets: ["latin"] })
 
