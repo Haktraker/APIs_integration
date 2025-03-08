@@ -304,8 +304,6 @@ export async function intelxSearchResultWithFiles(
 ): Promise<IntelXSearchResultWithFiles> {
   try {
     console.log('Starting intelxSearchResultWithFiles with ID:', id);
-    const PAGE_SIZE = 100;
-    let offset = 0;
     let allRecords: IntelXFileRecord[] = [];
     let page: IntelXSearchResultResponse;
     
@@ -314,7 +312,9 @@ export async function intelxSearchResultWithFiles(
     console.log('Fetching IntelX results from:', url);
     
     try {
-      page = await intelXFetch<IntelXSearchResultResponse>(url);
+      // Request all results at once by setting a large limit
+      const fullUrl = `${url}&limit=10000`;
+      page = await intelXFetch<IntelXSearchResultResponse>(fullUrl);
       console.log('Received page with records count:', page.records?.length || 0);
     } catch (error) {
       console.error('Error fetching results, will try cached results:', error);
@@ -339,34 +339,7 @@ export async function intelxSearchResultWithFiles(
     }
     
     if (page.records) {
-      allRecords = allRecords.concat(page.records);
-    }
-    
-    // Only try pagination if we know there are more results
-    if (page.count > PAGE_SIZE) {
-      offset += PAGE_SIZE;
-      
-      while (page.count > offset) {
-        try {
-          const paginatedUrl = `https://2.intelx.io/intelligent/search/result?id=${id}`;
-          console.log(`Fetching additional results from: ${paginatedUrl}`);
-          
-          const nextPage = await intelXFetch<IntelXSearchResultResponse>(paginatedUrl);
-          console.log(`Received additional page with records count:`, nextPage.records?.length || 0);
-          
-          if (nextPage.records && nextPage.records.length > 0) {
-            allRecords = allRecords.concat(nextPage.records);
-          } else {
-            console.log('No more records found, breaking pagination loop');
-            break;
-          }
-          
-          offset += PAGE_SIZE;
-        } catch (error) {
-          console.error('Error fetching additional results, stopping pagination:', error);
-          break;
-        }
-      }
+      allRecords = page.records;
     }
 
     console.log('Total records collected:', allRecords.length);

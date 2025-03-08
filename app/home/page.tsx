@@ -4,7 +4,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import DashboardLayout from "../dashboard-layout"
 
-export default function SearchPage() {
+export default function Home() {
   return (
     <DashboardLayout>
       <div className="container mx-auto py-6 space-y-6">
