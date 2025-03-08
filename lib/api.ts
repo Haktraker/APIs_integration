@@ -231,6 +231,16 @@ export interface IntelXSearchResultWithFiles {
   error?: string;
 }
 
+// Add at the top of the file with other interfaces
+interface CacheEntry {
+  timestamp: number;
+  data: IntelXResponse;
+}
+
+// Add cache object outside of functions to persist between requests
+const searchCache: { [key: string]: CacheEntry } = {};
+const CACHE_DURATION = 1000 * 60 * 30; // 30 minutes cache duration
+
 /**
  * Helper function for IntelX API requests
  */
@@ -259,6 +269,17 @@ export async function intelxSearch(
   term: string,
   sort: number = 4
 ): Promise<IntelXResponse> {
+  // Check cache first
+  const cacheKey = `${term}_${sort}`;
+  const cachedResult = searchCache[cacheKey];
+  const now = Date.now();
+
+  // If we have a valid cache entry, return it
+  if (cachedResult && (now - cachedResult.timestamp) < CACHE_DURATION) {
+    console.log('Returning cached results for:', term);
+    return cachedResult.data;
+  }
+
   try {
     const initData = await apiClient.post<IntelXSearchInitialResponse>(
       "https://2.intelx.io/intelligent/search",
@@ -281,15 +302,26 @@ export async function intelxSearch(
       ),
     ]);
 
-    console.log(results.records.length, "results from initial search");
+    const response: IntelXResponse = { id, results, statistics };
+
+    // Cache the new results
+    searchCache[cacheKey] = {
+      timestamp: now,
+      data: response
+    };
     
-    // Store the initial results in a global cache to ensure we have them for the file fetch
     if (results.records && results.records.length > 0) {
       searchResultsCache[id] = results;
     }
     
-    return { id, results, statistics };
+    return response;
   } catch (error: any) {
+    // If we have expired cache and the request fails, return expired cache
+    if (cachedResult) {
+      console.log('Request failed, returning expired cache for:', term);
+      return cachedResult.data;
+    }
+
     return {
       id: "",
       results: { records: [], status: 0, id: "", count: 0 },
@@ -299,26 +331,35 @@ export async function intelxSearch(
   }
 }
 
+// Also cache the file results
+const fileResultsCache: { [key: string]: { timestamp: number, data: IntelXSearchResultWithFiles } } = {};
+
 export async function intelxSearchResultWithFiles(
   id: string
 ): Promise<IntelXSearchResultWithFiles> {
+  // Check file results cache
+  const cachedResult = fileResultsCache[id];
+  const now = Date.now();
+
+  if (cachedResult && (now - cachedResult.timestamp) < CACHE_DURATION) {
+    console.log('Returning cached file results for ID:', id);
+    return cachedResult.data;
+  }
+
   try {
     console.log('Starting intelxSearchResultWithFiles with ID:', id);
     let allRecords: IntelXFileRecord[] = [];
     let page: IntelXSearchResultResponse;
     
-    // First try to get the results directly
     const url = `https://2.intelx.io/intelligent/search/result?id=${id}`;
     console.log('Fetching IntelX results from:', url);
     
     try {
-      const fullUrl = `${url}&limit=10000`;
+      const fullUrl = `${url}`;
       page = await intelXFetch<IntelXSearchResultResponse>(fullUrl);
       console.log('Received page with records count:', page.records?.length || 0);
     } catch (error) {
-      console.error('Error fetching results, will try cached results:', error);
       if (searchResultsCache[id]) {
-        console.log('Using cached results with count:', searchResultsCache[id].records.length);
         page = searchResultsCache[id];
       } else {
         throw new Error('Failed to fetch results and no cached results available');
@@ -327,25 +368,17 @@ export async function intelxSearchResultWithFiles(
     
     if (!page.records || page.records.length === 0) {
       if (searchResultsCache[id]) {
-        console.log('Direct fetch returned 0 records, using cached results with count:', 
-          searchResultsCache[id].records.length);
         page = searchResultsCache[id];
-      } else {
-        console.warn('No records found in direct fetch or cache');
       }
     }
     
     if (page.records) {
-      // Filter for text files only
       allRecords = page.records.filter(record => {
         const fileName = record.name.toLowerCase();
         return fileName.endsWith('.txt') || fileName.endsWith('.text');
       });
-      console.log('Filtered text files count:', allRecords.length);
     }
 
-    console.log('Total text records collected:', allRecords.length);
-    
     const results: IntelXSearchResultResponse = {
       records: allRecords,
       status: page.status,
@@ -354,7 +387,6 @@ export async function intelxSearchResultWithFiles(
     };
 
     if (allRecords.length === 0) {
-      console.warn('No text files found after filtering, returning empty result');
       return { 
         results, 
         files: {},
@@ -363,8 +395,6 @@ export async function intelxSearchResultWithFiles(
     }
 
     const files: { [storageid: string]: string } = {};
-    
-    // Limit concurrent requests
     const BATCH_SIZE = 10;
     const batches = [];
     
@@ -372,16 +402,11 @@ export async function intelxSearchResultWithFiles(
       batches.push(results.records.slice(i, i + BATCH_SIZE));
     }
     
-    console.log(`Processing ${batches.length} batches of text file content requests`);
-    
     for (let i = 0; i < batches.length; i++) {
       const batch = batches[i];
-      console.log(`Processing batch ${i+1}/${batches.length} with ${batch.length} files`);
-      
       await Promise.all(
         batch.map(async (record) => {
           try {
-            // Only process text files
             if (!record.name.toLowerCase().match(/\.(txt|text)$/)) {
               return;
             }
@@ -394,11 +419,8 @@ export async function intelxSearchResultWithFiles(
             
             const content = await apiClient.request<string>(url);
             
-            // Additional check to ensure content is text
             if (typeof content === 'string') {
               files[record.storageid] = content;
-            } else {
-              console.warn(`Skipping non-text content for file ${record.name}`);
             }
           } catch (err) {
             console.error(`Failed to fetch content for text file ${record.name}:`, err);
@@ -407,12 +429,23 @@ export async function intelxSearchResultWithFiles(
         })
       );
     }
-    
-    console.log('Completed fetching text file contents, total files:', Object.keys(files).length);
 
-    return { results, files };
+    const response = { results, files };
+
+    // Cache the file results
+    fileResultsCache[id] = {
+      timestamp: now,
+      data: response
+    };
+
+    return response;
   } catch (error: any) {
-    console.error('Error in intelxSearchResultWithFiles:', error);
+    // If we have expired cache and the request fails, return expired cache
+    if (cachedResult) {
+      console.log('Request failed, returning expired cache for ID:', id);
+      return cachedResult.data;
+    }
+
     return {
       results: { records: [], status: 0, id: id, count: 0 },
       files: {},
@@ -493,7 +526,7 @@ export async function leakIXSearch(query: string, page: number = 0): Promise<Lea
     if (!response.ok) {
       return {
         results: [],
-        error: `LeakIX API error: ${response.statusText}`
+        error: ` error: ${response.statusText}`
       };
     }
 

@@ -124,9 +124,6 @@ export default function DarkWebSearchPage() {
                     cx="50%"
                     cy="50%"
                     outerRadius={80}
-                    label={({ name, percent }) =>
-                      `${name}: ${(percent * 100).toFixed(2)}%`
-                    }
                   >
                     {intelXResults?.bucket?.map((_, i) => (
                       <Cell key={i} fill={COLORS[i % COLORS.length]} />
@@ -159,9 +156,6 @@ export default function DarkWebSearchPage() {
                     cx="50%"
                     cy="50%"
                     outerRadius={80}
-                    label={({ name, percent }) =>
-                      `${name}: ${(percent * 100).toFixed(2)}%`
-                    }
                   >
                     {intelXResults?.media?.map((_, i) => (
                       <Cell key={i} fill={COLORS[i % COLORS.length]} />
