@@ -7,17 +7,24 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { login } from "@/lib/auth"
 import { useState, useTransition } from "react"
 import { toast } from "sonner"
+import { useForm } from "react-hook-form"
+import { useAuthStore } from "@/lib/auth"
+import { serverLogin } from "@/app/actions/auth"
 
 export function LoginForm() {
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
+  const login = useAuthStore((state) => state.login)
 
-  async function handleSubmit(formData: FormData) {
+  const handleSubmit = async (formData: FormData) => {
     setError(null)
     startTransition(async () => {
       try {
-        await login(formData)
+        // Update client-side state
+        login({ /* user data */ })
+        // Handle server-side auth
+        await serverLogin(formData)
         toast.success("Logged in successfully")
         router.push("/home")
       } catch (error) {

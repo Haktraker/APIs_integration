@@ -1,7 +1,37 @@
-"use server"
+"use client"
 
-import { cookies } from "next/headers"
-import { redirect } from "next/navigation"
+import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
+
+interface AuthState {
+  isAuthenticated: boolean
+  user: any | null
+  login: (userData: any) => void
+  logout: () => void
+}
+
+export const useAuthStore = create<AuthState>()(
+  persist(
+    (set) => ({
+      isAuthenticated: false,
+      user: null,
+      login: (userData) => set({ isAuthenticated: true, user: userData }),
+      logout: () => set({ isAuthenticated: false, user: null }),
+    }),
+    {
+      name: 'auth-storage',
+    }
+  )
+)
+
+export const useAuth = () => {
+  const { isAuthenticated, user, login, logout } = useAuthStore()
+  return { isAuthenticated, user, login, logout }
+}
+
+export const logout = () => {
+  useAuthStore.getState().logout()
+}
 
 export async function login(formData: FormData) {
 
@@ -44,11 +74,6 @@ export async function login(formData: FormData) {
     throw error
   }
   
-}
-
-export async function logout() {
-  cookies().delete("auth-token")
-  redirect("/")
 }
 
 export async function checkAuth() {

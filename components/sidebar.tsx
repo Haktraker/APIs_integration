@@ -50,7 +50,7 @@ export function Sidebar() {
   return (
     <div
       className={cn(
-        "relative h-[calc(100vh-4rem)] border transition-all duration-300 ease-in-out",
+        "relative h-[calc(100vh-4rem)] border-r bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60",
         isCollapsed ? "w-16" : "w-64",
       )}
     >
@@ -60,15 +60,17 @@ export function Sidebar() {
             Navigation
           </h2>
           <div className="space-y-1">
-            <SidebarItem icon={Search} label="Home" href="/" />
-            <SidebarItem icon={Layers} label="Dark & Deep Web" href="/darkweb" />
+            <SidebarItem icon={Layers} label="Dark Web" href="/darkweb" />
+            <SidebarItem icon={Globe} label="Shodan" href="/shodan" />
+            <SidebarItem icon={Database} label="IntelX" href="/intelx" />
+            <SidebarItem icon={Network} label="Network" href="/network" />
           </div>
         </div>
       </div>
       <Button
         variant="ghost"
         size="icon"
-        className="absolute top-2 -right-4 bg-primary"
+        className="absolute bottom-4 right-4"
         onClick={() => setIsCollapsed(!isCollapsed)}
       >
         {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}

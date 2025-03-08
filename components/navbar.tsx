@@ -1,23 +1,15 @@
 "use client"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import Image from "next/image"
-import { User } from "lucide-react"
-import { ChangePasswordForm } from "./change-password-form"
-import { logout } from "@/lib/auth"
 import Link from "next/link"
+import { Button } from "@/components/ui/button"
+import { AuthNavbar } from "./auth-navbar"
+import { useAuthStore } from "@/lib/auth"
 
 export function Navbar() {
-  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false)
-  const router = useRouter()
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
 
-  const handleLogout = async () => {
-    await logout()
-    router.push("/")
+  if (isAuthenticated) {
+    return <AuthNavbar />
   }
 
   return (
@@ -37,6 +29,9 @@ export function Navbar() {
             </Button>
             <Button asChild variant="ghost" className="text-gray-300 hover:text-white">
               <Link href="/features">Features</Link>
+            </Button>
+            <Button asChild variant="ghost" className="text-gray-300 hover:text-white">
+              <Link href="/contact">Contact Us</Link>
             </Button>
             <Button asChild className="bg-blue-600 hover:bg-blue-700 text-white">
               <Link href="/login">Login</Link>
