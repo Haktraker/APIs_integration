@@ -2,7 +2,15 @@
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Search, Shield, AlertCircle, ChevronLeft, ChevronRight, Globe, Database, Network, Layers } from "lucide-react"
+import { 
+  ChevronLeft, 
+  ChevronRight, 
+  Search, 
+  Globe, 
+  Scan, 
+  Shield,
+  Layers
+} from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import Link from "next/link"
@@ -60,10 +68,26 @@ export function Sidebar() {
             Navigation
           </h2>
           <div className="space-y-1">
-            <SidebarItem icon={Layers} label="Dark Web" href="/darkweb" />
-            <SidebarItem icon={Globe} label="Shodan" href="/shodan" />
-            <SidebarItem icon={Database} label="IntelX" href="/intelx" />
-            <SidebarItem icon={Network} label="Network" href="/network" />
+            <SidebarItem 
+              icon={Layers} 
+              label="Dark & Deep Web" 
+              href="/darkweb" 
+            />
+            <SidebarItem 
+              icon={Globe} 
+              label="Attack Surface" 
+              href="/surface" 
+            />
+            <SidebarItem 
+              icon={Scan} 
+              label="Port Scan" 
+              href="/portscan" 
+            />
+            <SidebarItem 
+              icon={Shield} 
+              label="Vulns Scan" 
+              href="/vulnscan" 
+            />
           </div>
         </div>
       </div>
