@@ -159,13 +159,8 @@ export default function HomePage() {
               </p>
             </motion.div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {[
-                {
-                  icon: <Layers className="h-10 w-10 text-blue-400" />,
-                  title: "Dark & Deep Web",
-                  description: "Search dark web, deep web, and data leaks for sensitive information related to your target.",
-                },
                 {
                   icon: <Globe className="h-10 w-10 text-blue-400" />,
                   title: "Shodan",

@@ -74,11 +74,7 @@ export function Sidebar() {
               label="Dashboard" 
               href="/dashboard" 
             />
-            <SidebarItem 
-              icon={Layers} 
-              label="Dark & Deep Web" 
-              href="/darkweb" 
-            />
+            {/* Dark & Deep Web link removed */}
 
             <SidebarItem 
               icon={Globe} 

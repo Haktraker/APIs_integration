@@ -26,12 +26,14 @@ import {
   type ShodanResponse,
   type ShodanHostResponse,
 } from "@/lib/api/services/shodan";
+/* IntelX functionality has been removed
 import {
   intelxSearch,
   intelxSearchResultWithFiles,
   type IntelXSearchResultWithFiles,
   type IntelXSearchStatisticResponse,
 } from "@/lib/api/services/intelx";
+*/
 
 const PAGE_SIZE = 50;
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#AF19FF"];
@@ -56,8 +58,10 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 
 export function SearchForm() {
   const [results, setResults] = useState<ShodanResponse | null>(null);
+  /* IntelX state has been removed
   const [intelXResults, setIntelXResults] = useState<IntelXSearchStatisticResponse | null>(null);
   const [intelXFileResults, setIntelXFileResults] = useState<IntelXSearchResultWithFiles | null>(null);
+  */
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [statusMessage, setStatusMessage] = useState("");
@@ -65,6 +69,7 @@ export function SearchForm() {
   const [currentPage, setCurrentPage] = useState({ dns: 1, subdomains: 1, files: 1 });
   const abortControllerRef = useRef<AbortController | null>(null);
 
+  /* IntelX chart data formatting function has been removed
   const formatLineChartData = () => {
     if (!intelXResults?.date) return [];
     return intelXResults.date
@@ -74,6 +79,7 @@ export function SearchForm() {
       }))
       .sort((a, b) => a.date.getTime() - b.date.getTime());
   };
+  */
 
   const dateFormatter = (date: Date) =>
     date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
@@ -193,6 +199,7 @@ export function SearchForm() {
     </div>
   );
 
+  /* IntelX stats rendering function has been removed 
   const renderIntelXStats = () => (
     <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -269,23 +276,26 @@ export function SearchForm() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Temporal Distribution</CardTitle>
+          <CardTitle>Data Over Time</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="h-[400px]">
+          <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={formatLineChartData()} margin={{ top: 20, right: 20, bottom: 100, left: 40 }}>
+              <LineChart data={formatLineChartData()}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis
                   dataKey="date"
-                  tickFormatter={(date: Date) => dateFormatter(date)}
-                  angle={-45}
-                  textAnchor="end"
-                  tick={{ fontSize: 12 }}
+                  tickFormatter={dateFormatter}
+                  domain={["auto", "auto"]}
                 />
                 <YAxis />
                 <Tooltip content={<CustomTooltip />} />
-                <Line type="monotone" dataKey="count" stroke="#3B82F6" strokeWidth={2} dot={{ fill: "#1D4ED8" }} />
+                <Line
+                  type="monotone"
+                  dataKey="count"
+                  stroke="#8884d8"
+                  activeDot={{ r: 8 }}
+                />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -293,319 +303,246 @@ export function SearchForm() {
       </Card>
     </div>
   );
+  */
 
+  /* IntelX file rendering function has been removed
+  const renderIntelXFile = () => {
+    if (!selectedFile) return null;
+    return (
+      <Card className="mt-4">
+        <CardHeader>
+          <CardTitle>{selectedFile.name}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <pre className="bg-secondary p-4 rounded-md whitespace-pre-wrap text-sm max-h-[500px] overflow-auto">
+            {selectedFile.content}
+          </pre>
+        </CardContent>
+      </Card>
+    );
+  };
+  */
+
+  /* IntelX files section rendering function has been removed
   const renderIntelXFiles = () => {
-    // Add more detailed debugging to understand the structure of intelXFileResults
-    console.log('IntelX Files Debug:', { 
-      hasResults: !!intelXFileResults,
-      recordsLength: intelXFileResults?.results?.records?.length || 0,
-      filesCount: intelXFileResults?.files ? Object.keys(intelXFileResults.files).length : 0,
-      resultsStructure: intelXFileResults ? Object.keys(intelXFileResults) : [],
-      error: intelXFileResults?.error
-    });
-    
-    // Show error message if there's an error
-    if (intelXFileResults?.error) {
-      return (
-        <Card>
-          <CardHeader>
-            <CardTitle>Files</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-red-500">Error: {intelXFileResults.error}</p>
-          </CardContent>
-        </Card>
-      );
-    }
-    
-    // Early return if no results are available
-    if (!intelXFileResults || !intelXFileResults.results || !intelXFileResults.results.records) {
-      return (
-        <Card>
-          <CardHeader>
-            <CardTitle>Files</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p>No files found.</p>
-          </CardContent>
-        </Card>
-      );
-    }
-    
-    const records = intelXFileResults.results.records;
-    
-    // Check if records array is empty
-    if (records.length === 0) {
-      return (
-        <Card>
-          <CardHeader>
-            <CardTitle>Files</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p>No files found in the search results.</p>
-          </CardContent>
-        </Card>
-      );
-    }
-    
-    // Calculate paginated records
-    const paginatedRecords = records.slice(
+    if (!intelXFileResults?.results?.records?.length)
+      return <p>No text files found for this search.</p>;
+
+    const paginatedResults = intelXFileResults.results.records.slice(
       (currentPage.files - 1) * PAGE_SIZE,
       currentPage.files * PAGE_SIZE
     );
-    
+
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Files ({records.length})</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Filename</TableHead>
-                <TableHead>Date Added</TableHead>
-                <TableHead>Preview</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {paginatedRecords.map((record) => {
-                const content = intelXFileResults.files[record.storageid] || "";
-                return (
-                  <TableRow
-                    key={record.storageid}
-                    onClick={() =>
-                      setSelectedFile({
-                        name: record.name,
-                        content: content || "No content available",
-                      })
-                    }
-                    className="cursor-pointer hover:bg-accent"
-                  >
-                    <TableCell className="underline text-blue-600">{record.name}</TableCell>
-                    <TableCell>{new Date(record.added).toLocaleDateString()}</TableCell>
-                    <TableCell>
-                      <pre className="text-xs line-clamp-2">
-                        {content
-                          ? content.substring(0, 200) + (content.length > 200 ? "..." : "")
-                          : "N/A"}
-                      </pre>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-          {renderPagination("files", records.length)}
-        </CardContent>
-      </Card>
+      <div>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>File Name</TableHead>
+              <TableHead>Date</TableHead>
+              <TableHead>Size</TableHead>
+              <TableHead>Action</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {paginatedResults.map((file, index) => {
+              const fileContent = intelXFileResults.files[file.storageid];
+              return (
+                <TableRow key={index}>
+                  <TableCell>{file.name}</TableCell>
+                  <TableCell>
+                    {new Date(file.added).toLocaleDateString()}
+                  </TableCell>
+                  <TableCell>
+                    {(file.size / 1024).toFixed(2)} KB
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSelectedFile({ name: file.name, content: fileContent || "Content not available" })}
+                    >
+                      View
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+        {renderPagination("files", intelXFileResults.results.records.length)}
+      </div>
     );
   };
+  */
 
-  // Separate function to determine if we should show the files section
-  const shouldShowFilesSection = () => {
-    if (!intelXFileResults) return false;
-    
-    // Show if we have records
-    if (intelXFileResults.results?.records?.length > 0) return true;
-    
-    // Show if we have an error (to display the error message)
-    if (intelXFileResults.error) return true;
-    
-    return false;
-  };
+  async function handleSubmit(values: { query: string }) {
+    try {
+      setLoading(true);
+      setResults(null);
+      /* IntelX results reset has been removed
+      setIntelXResults(null);
+      setIntelXFileResults(null);
+      */
+      setSelectedFile(null);
+      setProgress(0);
+      setStatusMessage("Starting search...");
+
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      abortControllerRef.current = new AbortController();
+
+      const query = values.query.trim();
+
+      // Artificially simulate progress for better UX
+      const interval = setInterval(() => {
+        setProgress((prevProgress) => {
+          if (prevProgress >= 90) {
+            clearInterval(interval);
+            return prevProgress;
+          }
+          return prevProgress + 10;
+        });
+
+        // Update status message based on progress
+        setStatusMessage((prevStatus) => {
+          if (prevStatus === "Starting search...") return "Searching for data...";
+          if (prevStatus === "Searching for data...") return "Processing results...";
+          return "Finalizing results...";
+        });
+      }, 1000);
+
+      // Shodan search
+      if (isIP(query) || isDomain(query)) {
+        const shodanResults = await searchShodan(query);
+        setResults(shodanResults);
+      }
+
+      /* IntelX search has been removed
+      // IntelX search for data leaks
+      try {
+        // Only attempt intelX search if it's a domain
+        if (isDomain(query)) {
+          const intelXResponse = await intelxSearch(query);
+          setIntelXResults(intelXResponse.statistics);
+
+          if (intelXResponse.id) {
+            const fileResults = await intelxSearchResultWithFiles(intelXResponse.id);
+            setIntelXFileResults(fileResults);
+          }
+        }
+      } catch (error) {
+        console.error("IntelX search error:", error);
+        toast.error("Error fetching IntelX data. Some results may be missing.");
+      }
+      */
+
+      clearInterval(interval);
+      setProgress(100);
+      setStatusMessage("Search complete!");
+      toast.success("Search completed successfully!");
+    } catch (error) {
+      console.error("Search error:", error);
+      toast.error("An error occurred during the search.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Helper function to check if string is an IP address
+  function isIP(str: string) {
+    const ipRegex = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/;
+    return ipRegex.test(str);
+  }
+
+  // Helper function to check if string is a domain
+  function isDomain(str: string) {
+    const domainRegex = /^[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9](?:\.[a-zA-Z]{2,})+$/;
+    return domainRegex.test(str);
+  }
 
   return (
-    <div className="space-y-6 p-4">
-      <Card className="shadow-lg">
-        <CardContent className="pt-6">
-          <Formik
-            initialValues={{ query: "" }}
-            onSubmit={async (values, { setSubmitting }) => {
-              if (!values.query) return;
-              abortControllerRef.current = new AbortController();
-              setLoading(true);
-              setProgress(0);
-              setStatusMessage("Starting search...");
-              
-              // Reset previous results
-              setResults(null);
-              setIntelXResults(null);
-              setIntelXFileResults(null);
-              
-              try {
-                // Step 1: Query Shodan
-                setStatusMessage("Querying Shodan...");
-                const shodanResponse = await searchShodan(values.query);
-                setResults(shodanResponse);
-                setProgress(30);
-
-                // Step 2: Query IntelX
-                setStatusMessage("Querying IntelX...");
-                const intelXResponse = await intelxSearch(values.query);
-                console.log('IntelX search response:', {
-                  id: intelXResponse.id,
-                  recordsCount: intelXResponse.results?.records?.length || 0,
-                  hasError: !!intelXResponse.error
-                });
-                
-                if (intelXResponse.error) {
-                  toast.error(`IntelX search error: ${intelXResponse.error}`);
-                  setProgress(100);
-                  setStatusMessage("Search partially complete (IntelX failed)");
-                  return;
-                }
-                
-                // Set the statistics even if there are no results
-                setIntelXResults(intelXResponse.statistics);
-                setProgress(60);
-
-                // Step 3: Fetch file contents if we have an ID
-                setStatusMessage("Fetching file contents...");
-                if (!intelXResponse.id) {
-                  const errorMsg = "No IntelX search ID returned, cannot fetch files";
-                  toast.error(errorMsg);
-                  setIntelXFileResults({
-                    results: { records: [], status: 0, id: "", count: 0 },
-                    files: {},
-                    error: errorMsg
-                  });
-                  setProgress(100);
-                  setStatusMessage("Search partially complete (IntelX files unavailable)");
-                  return;
-                }
-                
-                // Check if we have records before trying to fetch files
-                if (!intelXResponse.results || !intelXResponse.results.records || intelXResponse.results.records.length === 0) {
-                  const warningMsg = "IntelX search returned no records, skipping file content fetch";
-                  toast.warning(warningMsg);
-                  setIntelXFileResults({
-                    results: { records: [], status: 0, id: intelXResponse.id, count: 0 },
-                    files: {},
-                    error: warningMsg
-                  });
-                  setProgress(100);
-                  setStatusMessage("Search complete (no IntelX files found)");
-                  return;
-                }
-                
-                // Fetch file contents
-                const intelXFilesResponse = await intelxSearchResultWithFiles(intelXResponse.id);
-                console.log('IntelX files response:', {
-                  hasError: !!intelXFilesResponse.error,
-                  recordsCount: intelXFilesResponse.results?.records?.length || 0,
-                  filesCount: Object.keys(intelXFilesResponse.files || {}).length
-                });
-                
-                // Set the results even if there's an error
-                setIntelXFileResults(intelXFilesResponse);
-                
-                if (intelXFilesResponse.error) {
-                  toast.error(`IntelX files error: ${intelXFilesResponse.error}`);
-                  setProgress(100);
-                  setStatusMessage("Search partially complete (IntelX files failed)");
-                  return;
-                }
-                
-                // All steps completed successfully
-                setProgress(100);
-                setStatusMessage("Search complete");
-                toast.success("Search completed successfully");
-              } catch (err: any) {
-                if (err.name === "AbortError") {
-                  setStatusMessage("Search cancelled");
-                  toast.info("Search was cancelled");
-                  return;
-                }
-                const errorObj = err instanceof Error 
-                  ? { message: err.message, name: err.name } 
-                  : { message: "Unknown error occurred", name: "UnknownError" };
-                const plainError = JSON.parse(JSON.stringify(errorObj));
-                toast.error(plainError.message);
-                console.error("Search error:", plainError);
-              } finally {
-                setLoading(false);
-                setSubmitting(false);
-              }
-            }}
-          >
-            {({ isSubmitting }) => (
-              <Form className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="query">Search Target</Label>
-                  <Field
-                    as={Input}
-                    id="query"
-                    name="query"
-                    placeholder="IP address or domain..."
-                    className="text-md py-6"
-                  />
-                </div>
-                <Button type="submit" className="w-full" size="lg" disabled={loading || isSubmitting}>
-                  {loading ? "Searching..." : "Start Investigation"}
-                </Button>
-              </Form>
-            )}
-          </Formik>
-        </CardContent>
-      </Card>
-
-      {loading && (
-        <Card className="shadow-lg">
-          <CardContent className="pt-6">
-            <Progress value={progress} className="h-2" />
-            <p className="text-sm text-muted-foreground text-center mt-2">
-              {statusMessage} {Math.floor(progress)}% complete
-            </p>
-            <Button variant="outline" onClick={() => abortControllerRef.current?.abort()} className="w-full mt-4">
-              Cancel Search
-            </Button>
-          </CardContent>
-        </Card>
-      )}
-
-      {results && (
-        <Card className="shadow-lg">
-          <CardHeader>
-            <CardTitle>Network Analysis</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {results.hostData && renderHostData(results.hostData)}
-            {results.dnsData && renderDNSData(results.dnsData)}
-          </CardContent>
-        </Card>
-      )}
-
-      {intelXResults && (
-        <Card className="shadow-lg">
-          <CardHeader>
-            <CardTitle>Intelligence Overview</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {renderIntelXStats()}
-          </CardContent>
-        </Card>
-      )}
-
-      {shouldShowFilesSection() && (
-        <div className="mt-6">
-          {renderIntelXFiles()}
-        </div>
-      )}
-
-      {selectedFile && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-background rounded-lg p-6 max-w-2xl max-h-[80vh] overflow-auto">
-            <div className="flex justify-between items-start mb-4">
-              <h2 className="text-xl font-bold">{selectedFile.name}</h2>
-              <Button variant="ghost" size="sm" onClick={() => setSelectedFile(null)}>
-                Close
-              </Button>
-            </div>
-            <pre className="whitespace-pre-wrap text-sm">{selectedFile.content}</pre>
+    <div className="space-y-8">
+      <Formik initialValues={{ query: "" }} onSubmit={handleSubmit}>
+        <Form className="space-y-4">
+          <div className="grid grid-cols-1 gap-2">
+            <Label htmlFor="query">Search Query (IP Address or Domain)</Label>
+            <Field
+              id="query"
+              name="query"
+              as={Input}
+              placeholder="Enter an IP address, domain, or search term..."
+              disabled={loading}
+            />
           </div>
+
+          {loading ? (
+            <div className="space-y-2">
+              <div className="flex justify-between text-xs mb-1">
+                <span>Search Progress:</span>
+                <span>{progress}%</span>
+              </div>
+              <Progress value={progress} className="h-2" />
+              <p className="text-xs text-muted-foreground mt-1">{statusMessage}</p>
+            </div>
+          ) : (
+            <Button type="submit" className="w-full sm:w-auto">
+              Search
+            </Button>
+          )}
+        </Form>
+      </Formik>
+
+      {/* Results section */}
+      {results && (
+        <div className="space-y-8">
+          <Card>
+            <CardHeader>
+              <CardTitle>Shodan Results</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {results.error ? (
+                <p className="text-red-500">{results.error}</p>
+              ) : (
+                <div className="space-y-6">
+                  {results.ip && renderHostData(results.ip)}
+                  {results.domain && renderDNSData(results.domain)}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
       )}
+
+      {/* IntelX results section has been removed
+      {intelXResults && (
+        <div className="space-y-8">
+          <Card>
+            <CardHeader>
+              <CardTitle>Intelligence X Data Analysis</CardTitle>
+            </CardHeader>
+            <CardContent>{renderIntelXStats()}</CardContent>
+          </Card>
+
+          {intelXFileResults && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Intelligence X Files</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {intelXFileResults.error && (
+                  <p className="text-amber-500 mb-4">{intelXFileResults.error}</p>
+                )}
+                {renderIntelXFiles()}
+              </CardContent>
+            </Card>
+          )}
+
+          {selectedFile && renderIntelXFile()}
+        </div>
+      )}
+      */}
     </div>
   );
 }
