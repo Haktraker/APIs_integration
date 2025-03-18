@@ -9,7 +9,8 @@ import {
   Scan, 
   Shield,
   Layers,
-  Home
+  Home,
+  ShieldAlert
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
@@ -90,6 +91,11 @@ export function Sidebar() {
               icon={Shield} 
               label="Vulns Scan" 
               href="/vulsScan" 
+            />
+            <SidebarItem 
+              icon={ShieldAlert} 
+              label="Nikto Scanner" 
+              href="/nikto" 
             />
           </div>
         </div>

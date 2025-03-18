@@ -10,13 +10,21 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 import { toast } from "sonner"
-import { Loader2, AlertTriangle, MapPin, Calendar, Building2, FileText } from "lucide-react"
+import { Loader2, AlertTriangle, MapPin, Calendar, Building2, FileText, ShieldAlert, HelpCircle, AlertCircle } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { getFormattedLeakIXResults } from "@/lib/api/services/leakix"
-import DashboardLayout from "../dashboard-layout"
+import { runNiktoScan, NiktoScanResult, NiktoVulnerability } from "@/lib/api/services/nikto"
+import { PageContainer } from "@/components/page-container"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Progress } from "@/components/ui/progress"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 
 const searchSchema = z.object({
   query: z.string().min(1, "Please enter a search term"),
+  scanType: z.enum(["leakix", "nikto", "both"]).default("both"),
+  port: z.string().optional(),
 })
 
 type SearchFormData = z.infer<typeof searchSchema>
@@ -47,61 +55,118 @@ function VulnScanContent() {
   const initialQuery = searchParams.get('q')
   
   const [isLoading, setIsLoading] = useState(false)
-  const [results, setResults] = useState<FormattedResult[]>([])
+  const [leakixResults, setLeakixResults] = useState<FormattedResult[]>([])
+  const [niktoResults, setNiktoResults] = useState<NiktoScanResult | null>(null)
+  const [activeTab, setActiveTab] = useState("leakix")
   const [error, setError] = useState<string | null>(null)
+  const [scanProgress, setScanProgress] = useState(0)
 
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors },
   } = useForm<SearchFormData>({
     resolver: zodResolver(searchSchema),
     defaultValues: {
       query: initialQuery || '',
+      scanType: "both",
+      port: "80",
     }
   })
 
-  const performSearch = async (searchTerm: string) => {
-    setIsLoading(true)
-    setError(null)
-    
+  const selectedScanType = watch("scanType")
+
+  const performLeakIXSearch = async (searchTerm: string) => {
     try {
-      console.log('Searching for:', searchTerm);
       const response = await getFormattedLeakIXResults(searchTerm)
-      console.log('Search response:', response);
 
       if (response.error) {
-        setError(response.error)
-        toast.error(response.error)
+        toast.error(`LeakIX: ${response.error}`)
         return
       }
 
       if (response.formattedResults.length === 0) {
-        toast.info("No vulnerabilities found")
+        toast.info("LeakIX: No vulnerabilities found")
       }
 
-      setResults(response.formattedResults)
-      console.log('Setting results:', response.formattedResults);
-      
+      setLeakixResults(response.formattedResults)
+      return true
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Search failed'
-      setError(message)
+      const message = error instanceof Error ? error.message : 'LeakIX search failed'
       toast.error(message)
-      console.error('Search error:', error);
-    } finally {
-      setIsLoading(false)
+      console.error('LeakIX error:', error);
+      return false
+    }
+  }
+
+  const performNiktoScan = async (target: string, port: string) => {
+    try {
+      const portNumber = parseInt(port, 10) || 80
+      const response = await runNiktoScan(target, portNumber)
+
+      if (!response.success) {
+        toast.error(`Nikto: ${response.error}`)
+        return false
+      }
+
+      if (response.scanResult) {
+        setNiktoResults(response.scanResult)
+        return true
+      }
+
+      return false
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Nikto scan failed'
+      toast.error(message)
+      console.error('Nikto error:', error);
+      return false
     }
   }
 
   const onSubmit = async (data: SearchFormData) => {
-    await performSearch(data.query)
+    setIsLoading(true)
+    setError(null)
+    setLeakixResults([])
+    setNiktoResults(null)
+    setScanProgress(0)
+    
+    try {
+      if (data.scanType === "leakix" || data.scanType === "both") {
+        setScanProgress(10)
+        await performLeakIXSearch(data.query)
+        setScanProgress(data.scanType === "both" ? 50 : 100)
+      }
+      
+      if (data.scanType === "nikto" || data.scanType === "both") {
+        setScanProgress(data.scanType === "both" ? 50 : 30)
+        toast.info("Starting Nikto scan. This may take several minutes...")
+        
+        setScanProgress(data.scanType === "both" ? 60 : 40)
+        const niktoSuccess = await performNiktoScan(data.query, data.port || "80")
+        
+        setScanProgress(100)
+        
+        if (niktoSuccess && data.scanType === "both") {
+          setActiveTab("nikto")
+        }
+      }
+      
+      toast.success("Vulnerability scan completed")
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Scan failed'
+      setError(message)
+      toast.error(message)
+    } finally {
+      setIsLoading(false)
+      setScanProgress(100)
+    }
   }
 
   // Perform initial search if query parameter exists
   useEffect(() => {
     if (initialQuery) {
-      console.log('Initial query:', initialQuery);
-      performSearch(initialQuery)
+      performLeakIXSearch(initialQuery)
     }
   }, [initialQuery])
 
@@ -116,133 +181,292 @@ function VulnScanContent() {
     }
   }
 
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-      className="space-y-6"
-    >
-      <h1 className="text-2xl font-bold mb-6">Vulnerability Scan</h1>
+  const renderLeakIXResults = () => {
+    if (leakixResults.length === 0) {
+      return (
+        <div className="text-center text-gray-400 mt-8">
+          No LeakIX vulnerabilities found for this search.
+        </div>
+      )
+    }
 
-      {/* Search Form */}
-      <div className="bg-gray-800/30 rounded-lg p-6 mb-6">
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="query">Domain or IP Address</Label>
-            <Input
-              id="query"
-              placeholder="Enter domain or IP to scan"
-              {...register("query")}
-              className={errors.query ? "border-red-500" : ""}
-              disabled={isLoading}
-            />
-            {errors.query && (
-              <p className="text-red-500 text-sm">{errors.query.message}</p>
-            )}
-          </div>
-
-          <Button
-            type="submit"
-            className="w-full bg-blue-600 hover:bg-blue-700"
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Scanning...
-              </>
-            ) : (
-              "Scan"
-            )}
-          </Button>
-        </form>
-      </div>
-
-      {/* Results Section */}
-      {results && results.length > 0 && (
-        <div className="space-y-6">
-          <div className="grid gap-6">
-            {results.map((result, index) => (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
-                className="bg-gray-800/30 rounded-lg p-6"
-              >
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <h3 className="text-lg font-semibold">
-                      {result.title}
-                    </h3>
-                    {result.ip && result.port && (
-                      <p className="text-sm text-gray-400">
-                        {result.ip}:{result.port}
-                      </p>
-                    )}
-                  </div>
-                  <Badge className={`${getSeverityColor(result.severity)}`}>
-                    {result.severity}
-                  </Badge>
+    return (
+      <div className="space-y-6">
+        <div className="grid gap-6">
+          {leakixResults.map((result, index) => (
+            <motion.div
+              key={index}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.1 }}
+              className="bg-gray-800/30 rounded-lg p-6"
+            >
+              <div className="flex justify-between items-start mb-4">
+                <div>
+                  <h3 className="text-lg font-semibold">
+                    {result.title}
+                  </h3>
+                  {result.ip && result.port && (
+                    <p className="text-sm text-gray-400">
+                      {result.ip}:{result.port}
+                    </p>
+                  )}
                 </div>
+                <Badge className={`${getSeverityColor(result.severity)}`}>
+                  {result.severity}
+                </Badge>
+              </div>
 
-                <div className="grid gap-4">
-                  {/* Event Summaries Section */}
-                  {result.eventSummaries && result.eventSummaries.length > 0 && (
-                    <div className="space-y-2">
-                      <div className="flex items-center text-sm font-medium text-gray-300">
-                        <FileText className="w-4 h-4 mr-2" />
-                        Event Summaries
-                      </div>
-                      <div className="pl-6 space-y-2">
-                        {result.eventSummaries.map((summary, idx) => (
-                          <div key={idx} className="text-sm text-gray-300 p-2 bg-gray-800/50 rounded-md">
-                            {summary}
-                          </div>
+              <div className="grid gap-4">
+                {/* Event Summaries Section */}
+                {result.eventSummaries && result.eventSummaries.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="flex items-center text-sm font-medium text-gray-300">
+                      <FileText className="w-4 h-4 mr-2" />
+                      Event Summaries
+                    </div>
+                    <div className="pl-6 space-y-2">
+                      {result.eventSummaries.map((summary, idx) => (
+                        <div key={idx} className="text-sm text-gray-300 p-2 bg-gray-800/50 rounded-md">
+                          {summary}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {result.software && (
+                  <div className="text-sm text-gray-400">
+                    Software: {result.software.name} {result.software.version}
+                  </div>
+                )}
+
+                {result.ssl && (
+                  <div className="text-sm text-gray-400">
+                    SSL: {result.ssl.version} (Valid until {result.ssl.validUntil})
+                    <br />
+                    Issuer: {result.ssl.issuer}
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-gray-400">
+                  {result.location && (
+                    <div className="flex items-center">
+                      <MapPin className="w-4 h-4 mr-2" />
+                      {result.location}
+                    </div>
+                  )}
+                  {result.organization && (
+                    <div className="flex items-center">
+                      <Building2 className="w-4 h-4 mr-2" />
+                      {result.organization}
+                    </div>
+                  )}
+                  <div className="flex items-center">
+                    <Calendar className="w-4 h-4 mr-2" />
+                    {result.date}
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  const renderNiktoResults = () => {
+    if (!niktoResults) {
+      return (
+        <div className="text-center text-gray-400 mt-8">
+          No Nikto scan results available. Run a scan to see results.
+        </div>
+      )
+    }
+
+    return (
+      <div className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Nikto Scan Summary</CardTitle>
+            <CardDescription>
+              Target: {niktoResults.target}:{niktoResults.targetPort} • 
+              Scan date: {new Date(niktoResults.scanDate).toLocaleString()} • 
+              Duration: {niktoResults.scanDuration}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="flex justify-between">
+                <span>Target server: {niktoResults.targetServer || "Unknown"}</span>
+                <Badge variant="outline">
+                  {niktoResults.totalVulnerabilities} {niktoResults.totalVulnerabilities === 1 ? 'issue' : 'issues'} found
+                </Badge>
+              </div>
+              
+              {niktoResults.publicUrl && (
+                <div>
+                  <p className="text-sm text-muted-foreground">
+                    View full results: <a href={niktoResults.publicUrl} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">{niktoResults.publicUrl}</a>
+                  </p>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="grid gap-4">
+          {niktoResults.vulnerabilities.map((vuln, index) => (
+            <Collapsible key={index} className="border border-gray-800 rounded-lg overflow-hidden">
+              <CollapsibleTrigger className="w-full flex justify-between items-center p-4 hover:bg-gray-800/30 transition-colors">
+                <div className="flex items-center">
+                  <Badge className={`mr-3 ${getSeverityColor(vuln.severity)}`}>
+                    {vuln.severity}
+                  </Badge>
+                  <span className="font-medium">{vuln.title}</span>
+                </div>
+                <div className="text-sm text-gray-400">ID: {vuln.id}</div>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="p-4 border-t border-gray-800 bg-gray-900/30">
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="text-sm font-medium mb-1 text-gray-300">Description</h4>
+                    <p className="text-sm text-gray-400">{vuln.description}</p>
+                  </div>
+                  
+                  {vuln.details && (
+                    <div>
+                      <h4 className="text-sm font-medium mb-1 text-gray-300">Details</h4>
+                      <p className="text-sm text-gray-400">{vuln.details}</p>
+                    </div>
+                  )}
+                  
+                  {vuln.recommendation && (
+                    <div>
+                      <h4 className="text-sm font-medium mb-1 text-gray-300">Recommendation</h4>
+                      <p className="text-sm text-gray-400">{vuln.recommendation}</p>
+                    </div>
+                  )}
+                  
+                  {vuln.cve && vuln.cve.length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-medium mb-1 text-gray-300">CVE References</h4>
+                      <div className="flex flex-wrap gap-2">
+                        {vuln.cve.map((cve, idx) => (
+                          <Badge key={idx} variant="outline" className="bg-gray-800/50">
+                            {cve}
+                          </Badge>
                         ))}
                       </div>
                     </div>
                   )}
-
-                  {result.software && (
-                    <div className="text-sm text-gray-400">
-                      Software: {result.software.name} {result.software.version}
-                    </div>
-                  )}
-
-                  {result.ssl && (
-                    <div className="text-sm text-gray-400">
-                      SSL: {result.ssl.version} (Valid until {result.ssl.validUntil})
-                      <br />
-                      Issuer: {result.ssl.issuer}
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-gray-400">
-                    {result.location && (
-                      <div className="flex items-center">
-                        <MapPin className="w-4 h-4 mr-2" />
-                        {result.location}
-                      </div>
-                    )}
-                    {result.organization && (
-                      <div className="flex items-center">
-                        <Building2 className="w-4 h-4 mr-2" />
-                        {result.organization}
-                      </div>
-                    )}
-                    <div className="flex items-center">
-                      <Calendar className="w-4 h-4 mr-2" />
-                      {result.date}
-                    </div>
-                  </div>
                 </div>
-              </motion.div>
-            ))}
-          </div>
+              </CollapsibleContent>
+            </Collapsible>
+          ))}
         </div>
-      )}
+
+        {niktoResults.rawResult && (
+          <Collapsible className="border border-gray-800 rounded-lg overflow-hidden">
+            <CollapsibleTrigger className="w-full flex justify-between items-center p-4 hover:bg-gray-800/30 transition-colors">
+              <div className="flex items-center">
+                <span className="font-medium">Raw Scan Results</span>
+              </div>
+              <AlertCircle className="h-4 w-4" />
+            </CollapsibleTrigger>
+            <CollapsibleContent className="p-4 border-t border-gray-800 bg-gray-900/30">
+              <pre className="text-xs text-gray-400 overflow-auto max-h-96 p-4 bg-gray-950/50 rounded">
+                {niktoResults.rawResult}
+              </pre>
+            </CollapsibleContent>
+          </Collapsible>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      <Card className="shadow-lg">
+        <CardHeader>
+          <CardTitle>Vulnerability Scanner</CardTitle>
+          <CardDescription>
+            Scan for vulnerabilities using different scanning engines. Nikto provides comprehensive web server security testing, while LeakIX searches for exposed services and data leaks.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+            <div className="space-y-2">
+              <Label htmlFor="query">Target Domain or IP</Label>
+              <Input
+                id="query"
+                placeholder="Enter domain or IP to scan"
+                {...register("query")}
+                className={errors.query ? "border-red-500" : ""}
+                disabled={isLoading}
+              />
+              {errors.query && (
+                <p className="text-red-500 text-sm">{errors.query.message}</p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label>Scan Type</Label>
+              <RadioGroup 
+                defaultValue="both" 
+                className="flex space-x-4"
+                {...register("scanType")}
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="leakix" id="leakix" />
+                  <Label htmlFor="leakix" className="cursor-pointer">LeakIX</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="nikto" id="nikto" />
+                  <Label htmlFor="nikto" className="cursor-pointer">Nikto</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="both" id="both" />
+                  <Label htmlFor="both" className="cursor-pointer">Both</Label>
+                </div>
+              </RadioGroup>
+            </div>
+
+            {(selectedScanType === "nikto" || selectedScanType === "both") && (
+              <div className="space-y-2">
+                <Label htmlFor="port">Port (for Nikto scan)</Label>
+                <Input
+                  id="port"
+                  placeholder="80"
+                  {...register("port")}
+                  disabled={isLoading}
+                />
+              </div>
+            )}
+
+            <Button
+              type="submit"
+              className="w-full bg-blue-600 hover:bg-blue-700"
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Scanning... ({Math.round(scanProgress)}%)
+                </>
+              ) : (
+                "Start Scan"
+              )}
+            </Button>
+          </form>
+          
+          {isLoading && (
+            <div className="mt-4">
+              <Progress value={scanProgress} className="h-2" />
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Error Message */}
       {error && (
@@ -252,21 +476,33 @@ function VulnScanContent() {
         </div>
       )}
 
-      {/* No Results Message */}
-      {!isLoading && (!results || results.length === 0) && !error && initialQuery && (
-        <div className="text-center text-gray-400 mt-8">
-          No vulnerabilities found for this search.
-        </div>
+      {/* Results Tabs */}
+      {(leakixResults.length > 0 || niktoResults) && (
+        <Card>
+          <CardContent className="pt-6">
+            <Tabs defaultValue="leakix" value={activeTab} onValueChange={setActiveTab}>
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="leakix" className="flex items-center justify-center">
+                  <AlertTriangle className="w-4 h-4 mr-2" />
+                  LeakIX Results
+                </TabsTrigger>
+                <TabsTrigger value="nikto" className="flex items-center justify-center">
+                  <ShieldAlert className="w-4 h-4 mr-2" />
+                  Nikto Results
+                </TabsTrigger>
+              </TabsList>
+              <div className="mt-6">
+                <TabsContent value="leakix">
+                  {renderLeakIXResults()}
+                </TabsContent>
+                <TabsContent value="nikto">
+                  {renderNiktoResults()}
+                </TabsContent>
+              </div>
+            </Tabs>
+          </CardContent>
+        </Card>
       )}
-    </motion.div>
-  )
-}
-
-// Loading fallback component
-function LoadingFallback() {
-  return (
-    <div className="container mx-auto p-6 flex items-center justify-center">
-      <Loader2 className="w-6 h-6 animate-spin" />
     </div>
   )
 }
@@ -274,12 +510,17 @@ function LoadingFallback() {
 // Main page component
 export default function VulnScanPage() {
   return (
-    <DashboardLayout>
-      <div className="container mx-auto p-6">
-        <Suspense fallback={<LoadingFallback />}>
-          <VulnScanContent />
-        </Suspense>
-      </div>
-    </DashboardLayout>
+    <PageContainer
+      title="Vulnerability Scanner"
+      description="Scan websites and servers for security vulnerabilities using multiple scanning engines including Nikto and LeakIX"
+    >
+      <Suspense fallback={
+        <div className="flex items-center justify-center p-6">
+          <Loader2 className="w-6 h-6 animate-spin" />
+        </div>
+      }>
+        <VulnScanContent />
+      </Suspense>
+    </PageContainer>
   )
 } 
