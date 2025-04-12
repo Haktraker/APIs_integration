@@ -92,11 +92,11 @@ export function Sidebar() {
               label="Vulns Scan" 
               href="/vulsScan" 
             />
-            <SidebarItem 
+            {/* <SidebarItem 
               icon={ShieldAlert} 
               label="Nikto Scanner" 
               href="/nikto" 
-            />
+            /> */}
           </div>
         </div>
       </div>
