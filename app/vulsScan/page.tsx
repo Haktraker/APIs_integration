@@ -13,7 +13,7 @@ import { toast } from "sonner"
 import { Loader2, AlertTriangle, MapPin, Calendar, Building2, FileText, ShieldAlert, HelpCircle, AlertCircle } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { getFormattedLeakIXResults } from "@/lib/api/services/leakix"
-import { runNiktoScan, NiktoScanResult, NiktoVulnerability } from "@/lib/api/services/nikto"
+
 import { PageContainer } from "@/components/page-container"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -23,8 +23,6 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 
 const searchSchema = z.object({
   query: z.string().min(1, "Please enter a search term"),
-  scanType: z.enum(["leakix", "nikto", "both"]).default("both"),
-  port: z.string().optional(),
 })
 
 type SearchFormData = z.infer<typeof searchSchema>
@@ -56,7 +54,7 @@ function VulnScanContent() {
   
   const [isLoading, setIsLoading] = useState(false)
   const [leakixResults, setLeakixResults] = useState<FormattedResult[]>([])
-  const [niktoResults, setNiktoResults] = useState<NiktoScanResult | null>(null)
+  
   const [activeTab, setActiveTab] = useState("leakix")
   const [error, setError] = useState<string | null>(null)
   const [scanProgress, setScanProgress] = useState(0)
@@ -64,18 +62,13 @@ function VulnScanContent() {
   const {
     register,
     handleSubmit,
-    watch,
     formState: { errors },
   } = useForm<SearchFormData>({
     resolver: zodResolver(searchSchema),
     defaultValues: {
       query: initialQuery || '',
-      scanType: "both",
-      port: "80",
     }
   })
-
-  const selectedScanType = watch("scanType")
 
   const performLeakIXSearch = async (searchTerm: string) => {
     try {
@@ -100,57 +93,18 @@ function VulnScanContent() {
     }
   }
 
-  const performNiktoScan = async (target: string, port: string) => {
-    try {
-      const portNumber = parseInt(port, 10) || 80
-      const response = await runNiktoScan(target, portNumber)
-
-      if (!response.success) {
-        toast.error(`Nikto: ${response.error}`)
-        return false
-      }
-
-      if (response.scanResult) {
-        setNiktoResults(response.scanResult)
-        return true
-      }
-
-      return false
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Nikto scan failed'
-      toast.error(message)
-      console.error('Nikto error:', error);
-      return false
-    }
-  }
+  
 
   const onSubmit = async (data: SearchFormData) => {
     setIsLoading(true)
     setError(null)
     setLeakixResults([])
-    setNiktoResults(null)
     setScanProgress(0)
     
     try {
-      if (data.scanType === "leakix" || data.scanType === "both") {
-        setScanProgress(10)
-        await performLeakIXSearch(data.query)
-        setScanProgress(data.scanType === "both" ? 50 : 100)
-      }
-      
-      if (data.scanType === "nikto" || data.scanType === "both") {
-        setScanProgress(data.scanType === "both" ? 50 : 30)
-        toast.info("Starting Nikto scan. This may take several minutes...")
-        
-        setScanProgress(data.scanType === "both" ? 60 : 40)
-        const niktoSuccess = await performNiktoScan(data.query, data.port || "80")
-        
-        setScanProgress(100)
-        
-        if (niktoSuccess && data.scanType === "both") {
-          setActiveTab("nikto")
-        }
-      }
+      setScanProgress(10)
+      await performLeakIXSearch(data.query)
+      setScanProgress(100)
       
       toast.success("Vulnerability scan completed")
     } catch (error) {
@@ -275,115 +229,7 @@ function VulnScanContent() {
     )
   }
 
-  const renderNiktoResults = () => {
-    if (!niktoResults) {
-      return (
-        <div className="text-center text-gray-400 mt-8">
-          No Nikto scan results available. Run a scan to see results.
-        </div>
-      )
-    }
-
-    return (
-      <div className="space-y-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Nikto Scan Summary</CardTitle>
-            <CardDescription>
-              Target: {niktoResults.target}:{niktoResults.targetPort} • 
-              Scan date: {new Date(niktoResults.scanDate).toLocaleString()} • 
-              Duration: {niktoResults.scanDuration}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex justify-between">
-                <span>Target server: {niktoResults.targetServer || "Unknown"}</span>
-                <Badge variant="outline">
-                  {niktoResults.totalVulnerabilities} {niktoResults.totalVulnerabilities === 1 ? 'issue' : 'issues'} found
-                </Badge>
-              </div>
-              
-              {niktoResults.publicUrl && (
-                <div>
-                  <p className="text-sm text-muted-foreground">
-                    View full results: <a href={niktoResults.publicUrl} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">{niktoResults.publicUrl}</a>
-                  </p>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        <div className="grid gap-4">
-          {niktoResults.vulnerabilities.map((vuln, index) => (
-            <Collapsible key={index} className="border border-gray-800 rounded-lg overflow-hidden">
-              <CollapsibleTrigger className="w-full flex justify-between items-center p-4 hover:bg-gray-800/30 transition-colors">
-                <div className="flex items-center">
-                  <Badge className={`mr-3 ${getSeverityColor(vuln.severity)}`}>
-                    {vuln.severity}
-                  </Badge>
-                  <span className="font-medium">{vuln.title}</span>
-                </div>
-                <div className="text-sm text-gray-400">ID: {vuln.id}</div>
-              </CollapsibleTrigger>
-              <CollapsibleContent className="p-4 border-t border-gray-800 bg-gray-900/30">
-                <div className="space-y-4">
-                  <div>
-                    <h4 className="text-sm font-medium mb-1 text-gray-300">Description</h4>
-                    <p className="text-sm text-gray-400">{vuln.description}</p>
-                  </div>
-                  
-                  {vuln.details && (
-                    <div>
-                      <h4 className="text-sm font-medium mb-1 text-gray-300">Details</h4>
-                      <p className="text-sm text-gray-400">{vuln.details}</p>
-                    </div>
-                  )}
-                  
-                  {vuln.recommendation && (
-                    <div>
-                      <h4 className="text-sm font-medium mb-1 text-gray-300">Recommendation</h4>
-                      <p className="text-sm text-gray-400">{vuln.recommendation}</p>
-                    </div>
-                  )}
-                  
-                  {vuln.cve && vuln.cve.length > 0 && (
-                    <div>
-                      <h4 className="text-sm font-medium mb-1 text-gray-300">CVE References</h4>
-                      <div className="flex flex-wrap gap-2">
-                        {vuln.cve.map((cve, idx) => (
-                          <Badge key={idx} variant="outline" className="bg-gray-800/50">
-                            {cve}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </CollapsibleContent>
-            </Collapsible>
-          ))}
-        </div>
-
-        {niktoResults.rawResult && (
-          <Collapsible className="border border-gray-800 rounded-lg overflow-hidden">
-            <CollapsibleTrigger className="w-full flex justify-between items-center p-4 hover:bg-gray-800/30 transition-colors">
-              <div className="flex items-center">
-                <span className="font-medium">Raw Scan Results</span>
-              </div>
-              <AlertCircle className="h-4 w-4" />
-            </CollapsibleTrigger>
-            <CollapsibleContent className="p-4 border-t border-gray-800 bg-gray-900/30">
-              <pre className="text-xs text-gray-400 overflow-auto max-h-96 p-4 bg-gray-950/50 rounded">
-                {niktoResults.rawResult}
-              </pre>
-            </CollapsibleContent>
-          </Collapsible>
-        )}
-      </div>
-    )
-  }
+  
 
   return (
     <div className="space-y-6">
@@ -410,39 +256,9 @@ function VulnScanContent() {
               )}
             </div>
 
-            <div className="space-y-2">
-              <Label>Scan Type</Label>
-              <RadioGroup 
-                defaultValue="both" 
-                className="flex space-x-4"
-                {...register("scanType")}
-              >
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="leakix" id="leakix" />
-                  <Label htmlFor="leakix" className="cursor-pointer">LeakIX</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="nikto" id="nikto" />
-                  <Label htmlFor="nikto" className="cursor-pointer">Nikto</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="both" id="both" />
-                  <Label htmlFor="both" className="cursor-pointer">Both</Label>
-                </div>
-              </RadioGroup>
-            </div>
 
-            {(selectedScanType === "nikto" || selectedScanType === "both") && (
-              <div className="space-y-2">
-                <Label htmlFor="port">Port (for Nikto scan)</Label>
-                <Input
-                  id="port"
-                  placeholder="80"
-                  {...register("port")}
-                  disabled={isLoading}
-                />
-              </div>
-            )}
+
+            
 
             <Button
               type="submit"
@@ -477,7 +293,7 @@ function VulnScanContent() {
       )}
 
       {/* Results Tabs */}
-      {(leakixResults.length > 0 || niktoResults) && (
+      {(leakixResults.length > 0) && (
         <Card>
           <CardContent className="pt-6">
             <Tabs defaultValue="leakix" value={activeTab} onValueChange={setActiveTab}>
@@ -486,18 +302,13 @@ function VulnScanContent() {
                   <AlertTriangle className="w-4 h-4 mr-2" />
                   LeakIX Results
                 </TabsTrigger>
-                <TabsTrigger value="nikto" className="flex items-center justify-center">
-                  <ShieldAlert className="w-4 h-4 mr-2" />
-                  Nikto Results
-                </TabsTrigger>
+                
               </TabsList>
               <div className="mt-6">
                 <TabsContent value="leakix">
                   {renderLeakIXResults()}
                 </TabsContent>
-                <TabsContent value="nikto">
-                  {renderNiktoResults()}
-                </TabsContent>
+                
               </div>
             </Tabs>
           </CardContent>
@@ -523,4 +334,4 @@ export default function VulnScanPage() {
       </Suspense>
     </PageContainer>
   )
-} 
+}

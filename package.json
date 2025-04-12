@@ -56,6 +56,7 @@
     "next": "^14.2.24",
     "next-themes": "^0.4.4",
     "node-fetch": "^2.7.0",
+    "node-nmap": "^4.0.0",
     "react": "^18",
     "react-calendar-heatmap": "^1.10.0",
     "react-day-picker": "8.10.1",
